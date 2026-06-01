@@ -1,4 +1,4 @@
-import { createSupabaseServerClient } from "@/lib/supabase/admin";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
@@ -12,7 +12,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const supabase = await createSupabaseServerClient();
+    const supabase = await createSupabaseAdminClient();
     const { error } = await supabase.auth.updateUser({ password });
 
     if (error) {

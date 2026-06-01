@@ -11,11 +11,11 @@ import {
   CheckCircle2,
   ShieldCheck,
 } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
-  const supabase = createClient();
+  const supabase = createSupabaseBrowserClient();
 
   const [formData, setFormData] = useState({
     password: "",

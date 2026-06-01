@@ -58,25 +58,92 @@ export async function GET(
       return NextResponse.json({ error: "Job not found" }, { status: 404 });
     }
 
-    // Fetch live candidate stats from cv_uploads
-    // cv_uploads is your actual candidates table
-    const { data: cvStats } = await admin
+    // Fetch candidates WITH screening results joined
+    // One query instead of two — more efficient
+    const { data: cvUploads } = await admin
       .from("cv_uploads")
-      .select("id, screening_status, status")
-      .eq("job_id", id);
+      .select(
+        `
+    id,
+    candidate_name,
+    candidate_email,
+    candidate_phone,
+    cv_url,
+    file_path,
+    status,
+    screening_status,
+    source,
+    created_at,
+    screening_results (
+      overall_score,
+      summary,
+      strengths,
+      red_flags,
+      justification,
+      recommendation
+    )
+  `,
+      )
+      .eq("job_id", id)
+      .eq("company_id", profile.company_id)
+      .order("created_at", { ascending: false });
+
+    // Build stats from the same data — no second DB call needed
+    const cvList = cvUploads ?? [];
 
     const stats = {
-      total: cvStats?.length ?? 0,
-      screened:
-        cvStats?.filter((c) => c.screening_status === "completed").length ?? 0,
-      pending:
-        cvStats?.filter((c) => c.screening_status === "pending").length ?? 0,
-      shortlisted:
-        cvStats?.filter((c) => c.status === "shortlisted").length ?? 0,
-      rejected: cvStats?.filter((c) => c.status === "rejected").length ?? 0,
+      total: cvList.length,
+      screened: cvList.filter((c) => c.screening_status === "completed").length,
+      pending: cvList.filter((c) => c.screening_status === "pending").length,
+      shortlisted: cvList.filter((c) => c.status === "shortlisted").length,
+      rejected: cvList.filter((c) => c.status === "rejected").length,
     };
 
-    return NextResponse.json({ job, stats });
+    // Shape data to match what the frontend page expects
+    // The page uses ai_score, ai_summary etc — these come from screening_results
+    const candidates = cvList.map((c) => {
+      // screening_results is returned as array by Supabase — take first element
+      const sr = Array.isArray(c.screening_results)
+        ? c.screening_results[0]
+        : c.screening_results;
+
+      return {
+        id: c.id,
+        candidate_name: c.candidate_name,
+        candidate_email: c.candidate_email,
+        candidate_phone: c.candidate_phone ?? null,
+        cv_url: c.cv_url ?? c.file_path, // fallback to file_path if cv_url empty
+        status: c.status ?? "new",
+        screening_status: c.screening_status ?? "pending",
+        source: c.source ?? "manual",
+        applied_at: c.created_at,
+
+        // AI fields — from screening_results join
+        ai_score: sr?.overall_score ?? null,
+        ai_summary: sr?.summary ?? null,
+        ai_strengths: sr?.strengths ?? null,
+        ai_red_flags: sr?.red_flags ?? null,
+        ai_justification: sr?.justification ?? null,
+      };
+    });
+
+    // Fetch subscription quota for upload page
+    const { data: sub } = await admin
+      .from("subscriptions")
+      .select("cv_count_current, cv_limit_monthly")
+      .eq("company_id", profile.company_id)
+      .maybeSingle();
+
+    return NextResponse.json({
+      job,
+      stats,
+      candidates,
+      companyId: profile.company_id,
+      quota: {
+        used: sub?.cv_count_current ?? 0,
+        limit: sub?.cv_limit_monthly ?? 50,
+      },
+    });
   } catch (err) {
     console.error("GET /api/jobs/[id] error:", err);
     return NextResponse.json(

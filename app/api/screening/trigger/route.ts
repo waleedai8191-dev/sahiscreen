@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
     let query = admin
       .from("cv_uploads")
       .select(
-        "id, file_path, candidate_name, candidate_email, parsed_text, screening_status",
+        "id, file_path, candidate_name, candidate_email, parsed_text, screening_status, company_id",
       )
       .eq("job_id", jobId)
       .eq("company_id", companyId);
@@ -87,6 +87,7 @@ async function processCV(
     file_path: string;
     candidate_name: string;
     parsed_text?: string;
+    company_id: string;
   },
   job: {
     id: string;
@@ -153,7 +154,7 @@ async function processCV(
         candidate_id: cv.id, // cv_uploads.id
         cv_id: cv.id, // your original column name
         job_id: job.id,
-        company_id: screenData.companyId,
+        company_id: cv.company_id,
         score: screenData.overall_score ?? screenData.score,
         overall_score: screenData.overall_score,
         summary: screenData.summary ?? "",
@@ -218,6 +219,7 @@ async function processCVsInBackground(
     file_path: string;
     candidate_name: string;
     parsed_text?: string;
+    company_id: string;
   }>,
   job: {
     id: string;

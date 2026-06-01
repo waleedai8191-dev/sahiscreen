@@ -23,6 +23,7 @@ import {
   BarChart3,
   Sparkles,
 } from "lucide-react";
+import "../../Style/dashboard.css";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -46,32 +47,91 @@ interface ActivityItem {
 
 // ─── Data Fetching ────────────────────────────────────────────────────────────
 
+const EMPTY_DASHBOARD = {
+  jobs: [] as RecentJob[],
+  totalCandidates: 0,
+  totalScreenings: 0,
+  activeJobs: 0,
+  error: false,
+};
+
 async function getDashboardData(companyId: string) {
-  const supabase = await createSupabaseServerClient();
+  try {
+    const supabase = await createSupabaseServerClient();
 
-  const [jobsResult, candidatesResult, screeningsResult] = await Promise.all([
-    supabase
-      .from("jobs")
-      .select("id, title, department, status, created_at")
-      .eq("company_id", companyId)
-      .order("created_at", { ascending: false })
-      .limit(5),
-    supabase
-      .from("candidates")
-      .select("id", { count: "exact", head: true })
-      .eq("company_id", companyId),
-    supabase
-      .from("screening_results")
-      .select("id", { count: "exact", head: true })
-      .eq("company_id", companyId),
-  ]);
+    const [jobsResult, candidatesResult, screeningsResult, activeJobsResult] =
+      await Promise.all([
+        supabase
+          .from("jobs")
+          .select("id, title, department, status, created_at")
+          .eq("company_id", companyId)
+          .order("created_at", { ascending: false })
+          .limit(5),
+        supabase
+          .from("candidates")
+          .select("id", { count: "exact", head: true })
+          .eq("company_id", companyId),
+        supabase
+          .from("candidates")
+          .select("id", { count: "exact", head: true })
+          .eq("company_id", companyId)
+          .eq("screening_status", "screened"),
+        supabase
+          .from("jobs")
+          .select("id", { count: "exact", head: true })
+          .eq("company_id", companyId)
+          .eq("status", "active"),
+      ]);
 
-  const jobs = (jobsResult.data ?? []) as RecentJob[];
-  const totalCandidates = candidatesResult.count ?? 0;
-  const totalScreenings = screeningsResult.count ?? 0;
-  const activeJobs = jobs.filter((j) => j.status === "active").length;
+    // Check if any query failed
+    const queryError =
+      jobsResult.error ||
+      candidatesResult.error ||
+      screeningsResult.error ||
+      activeJobsResult.error;
 
-  return { jobs, totalCandidates, totalScreenings, activeJobs };
+    if (queryError) {
+      console.error("[getDashboardData] Supabase query failed:", queryError);
+      return { ...EMPTY_DASHBOARD, error: true };
+    }
+
+    const jobIds = (jobsResult.data ?? []).map((j) => j.id);
+    const [perJobTotal, perJobScreened] = await Promise.all([
+      supabase.from("candidates").select("job_id").in("job_id", jobIds),
+      supabase
+        .from("candidates")
+        .select("job_id")
+        .in("job_id", jobIds)
+        .eq("screening_status", "screened"),
+    ]);
+
+    const totalByJob: Record<string, number> = {};
+    const screenedByJob: Record<string, number> = {};
+
+    for (const row of perJobTotal.data ?? []) {
+      totalByJob[row.job_id] = (totalByJob[row.job_id] ?? 0) + 1;
+    }
+    for (const row of perJobScreened.data ?? []) {
+      screenedByJob[row.job_id] = (screenedByJob[row.job_id] ?? 0) + 1;
+    }
+
+    const jobs: RecentJob[] = (jobsResult.data ?? []).map((j) => ({
+      ...j,
+      candidates_count: totalByJob[j.id] ?? 0,
+      screened_count: screenedByJob[j.id] ?? 0,
+    }));
+
+    return {
+      jobs,
+      totalCandidates: candidatesResult.count ?? 0,
+      totalScreenings: screeningsResult.count ?? 0,
+      activeJobs: activeJobsResult.count ?? 0,
+      error: false,
+    };
+  } catch (err) {
+    console.error("[getDashboardData] Unexpected error:", err);
+    return { ...EMPTY_DASHBOARD, error: true };
+  }
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -136,9 +196,33 @@ export default async function DashboardPage() {
     getSubscriptionStatus(session.id),
   ]);
 
-  const companyId = profile?.company_id ?? "";
-  const { jobs, totalCandidates, totalScreenings, activeJobs } =
+  const companyId = profile?.company_id;
+
+  if (!companyId) redirect("/onboarding");
+  const { jobs, totalCandidates, totalScreenings, activeJobs, error } =
     await getDashboardData(companyId);
+  {
+    error && (
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "10px",
+          padding: "13px 18px",
+          background: "rgba(239,68,68,0.06)",
+          border: "1px solid rgba(239,68,68,0.2)",
+          borderRadius: "12px",
+          marginBottom: "20px",
+        }}
+      >
+        <AlertCircle size={16} color="#ef4444" />
+        <span style={{ fontSize: "13px", color: "#dc2626", fontWeight: 500 }}>
+          Some dashboard data failed to load. Stats may be incomplete — please
+          refresh the page.
+        </span>
+      </div>
+    );
+  }
 
   const firstName = (profile?.full_name ?? "there").split(" ")[0];
   const usagePercent = subscription
@@ -154,583 +238,18 @@ export default async function DashboardPage() {
   const greeting =
     hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
+  const daysRemaining = subscription?.trial_ends_at
+    ? Math.max(
+        0,
+        Math.ceil(
+          (new Date(subscription.trial_ends_at).getTime() - Date.now()) /
+            (1000 * 60 * 60 * 24),
+        ),
+      )
+    : 0;
+
   return (
     <>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-
-        .dash-page {
-          min-height: 100%;
-          background: #f8fafc;
-          padding: 28px 32px 48px;
-          font-family: 'Plus Jakarta Sans', sans-serif;
-        }
-
-        /* ── Stagger reveal ── */
-        @keyframes fadeUp {
-          from { opacity: 0; transform: translateY(16px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        .reveal { animation: fadeUp 0.45s cubic-bezier(0.22,1,0.36,1) both; }
-        .reveal-1 { animation-delay: 0.05s; }
-        .reveal-2 { animation-delay: 0.12s; }
-        .reveal-3 { animation-delay: 0.19s; }
-        .reveal-4 { animation-delay: 0.26s; }
-        .reveal-5 { animation-delay: 0.33s; }
-        .reveal-6 { animation-delay: 0.40s; }
-
-        /* ── Page header ── */
-        .page-header {
-          margin-bottom: 28px;
-        }
-        .greeting-row {
-          display: flex;
-          align-items: flex-start;
-          justify-content: space-between;
-          gap: 16px;
-          flex-wrap: wrap;
-        }
-        .greeting-text {
-          font-size: 24px;
-          font-weight: 800;
-          color: #0f172a;
-          letter-spacing: -0.5px;
-        }
-        .greeting-sub {
-          font-size: 14px;
-          color: #64748b;
-          margin-top: 4px;
-          font-weight: 500;
-        }
-        .header-actions {
-          display: flex;
-          gap: 10px;
-          flex-shrink: 0;
-        }
-        .btn-outline {
-          display: flex;
-          align-items: center;
-          gap: 7px;
-          padding: 9px 16px;
-          border: 1.5px solid #e2e8f0;
-          border-radius: 10px;
-          background: #fff;
-          font-size: 13px;
-          font-weight: 600;
-          color: #374151;
-          cursor: pointer;
-          text-decoration: none;
-          transition: border-color 0.2s, box-shadow 0.2s;
-          font-family: 'Plus Jakarta Sans', sans-serif;
-        }
-        .btn-outline:hover {
-          border-color: #7C3AED;
-          box-shadow: 0 0 0 3px rgba(124,58,237,0.08);
-          color: #7C3AED;
-        }
-        .btn-primary {
-          display: flex;
-          align-items: center;
-          gap: 7px;
-          padding: 9px 18px;
-          border-radius: 10px;
-          background: linear-gradient(135deg, #7C3AED, #5b21b6);
-          border: none;
-          font-size: 13px;
-          font-weight: 700;
-          color: #fff;
-          cursor: pointer;
-          text-decoration: none;
-          box-shadow: 0 4px 12px rgba(124,58,237,0.3);
-          transition: transform 0.18s, box-shadow 0.18s;
-          font-family: 'Plus Jakarta Sans', sans-serif;
-        }
-        .btn-primary:hover {
-          transform: translateY(-1px);
-          box-shadow: 0 6px 18px rgba(124,58,237,0.38);
-        }
-
-        /* ── Trial banner ── */
-        .trial-banner {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 12px;
-          padding: 13px 18px;
-          background: linear-gradient(135deg, rgba(124,58,237,0.08), rgba(91,33,182,0.05));
-          border: 1px solid rgba(124,58,237,0.2);
-          border-radius: 12px;
-          margin-bottom: 24px;
-          flex-wrap: wrap;
-        }
-        .trial-banner-left {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-        }
-        .trial-icon {
-          width: 34px;
-          height: 34px;
-          border-radius: 9px;
-          background: linear-gradient(135deg,#7C3AED,#5b21b6);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          flex-shrink: 0;
-        }
-        .trial-text-title {
-          font-size: 13px;
-          font-weight: 700;
-          color: #5b21b6;
-        }
-        .trial-text-sub {
-          font-size: 12px;
-          color: #7C3AED;
-          margin-top: 1px;
-        }
-        .trial-upgrade-btn {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          padding: 7px 14px;
-          background: linear-gradient(135deg, #7C3AED, #5b21b6);
-          border-radius: 8px;
-          border: none;
-          font-size: 12px;
-          font-weight: 700;
-          color: #fff;
-          cursor: pointer;
-          text-decoration: none;
-          font-family: 'Plus Jakarta Sans', sans-serif;
-          transition: transform 0.15s;
-          flex-shrink: 0;
-        }
-        .trial-upgrade-btn:hover { transform: translateY(-1px); }
-
-        /* ── Stats grid ── */
-        .stats-grid {
-          display: grid;
-          grid-template-columns: repeat(4, 1fr);
-          gap: 16px;
-          margin-bottom: 24px;
-        }
-        .stat-card {
-          background: #fff;
-          border: 1px solid #e2e8f0;
-          border-radius: 14px;
-          padding: 20px;
-          position: relative;
-          overflow: hidden;
-          transition: box-shadow 0.2s, transform 0.2s;
-        }
-        .stat-card:hover {
-          box-shadow: 0 8px 28px rgba(0,0,0,0.07);
-          transform: translateY(-2px);
-        }
-        .stat-card::before {
-          content: '';
-          position: absolute;
-          top: 0; left: 0; right: 0;
-          height: 3px;
-          border-radius: 14px 14px 0 0;
-        }
-        .stat-card.purple::before { background: linear-gradient(90deg,#7C3AED,#a78bfa); }
-        .stat-card.blue::before   { background: linear-gradient(90deg,#3b82f6,#93c5fd); }
-        .stat-card.green::before  { background: linear-gradient(90deg,#22c55e,#86efac); }
-        .stat-card.amber::before  { background: linear-gradient(90deg,#f59e0b,#fcd34d); }
-
-        .stat-top {
-          display: flex;
-          align-items: flex-start;
-          justify-content: space-between;
-          margin-bottom: 14px;
-        }
-        .stat-icon-wrap {
-          width: 40px;
-          height: 40px;
-          border-radius: 11px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-        .stat-icon-wrap.purple { background: rgba(124,58,237,0.1); }
-        .stat-icon-wrap.blue   { background: rgba(59,130,246,0.1); }
-        .stat-icon-wrap.green  { background: rgba(34,197,94,0.1);  }
-        .stat-icon-wrap.amber  { background: rgba(245,158,11,0.1); }
-
-        .stat-trend {
-          display: flex;
-          align-items: center;
-          gap: 3px;
-          font-size: 11px;
-          font-weight: 600;
-          padding: 3px 7px;
-          border-radius: 20px;
-        }
-        .stat-trend.up   { color: #16a34a; background: rgba(34,197,94,0.1); }
-        .stat-trend.flat { color: #64748b; background: rgba(100,116,139,0.1); }
-
-        .stat-value {
-          font-size: 28px;
-          font-weight: 800;
-          color: #0f172a;
-          letter-spacing: -1px;
-          line-height: 1;
-          margin-bottom: 4px;
-        }
-        .stat-label {
-          font-size: 12px;
-          color: #64748b;
-          font-weight: 500;
-        }
-
-        /* ── Usage bar inside stat ── */
-        .usage-bar-wrap {
-          margin-top: 12px;
-        }
-        .usage-bar-row {
-          display: flex;
-          justify-content: space-between;
-          margin-bottom: 5px;
-        }
-        .usage-bar-label {
-          font-size: 11px;
-          color: #94a3b8;
-        }
-        .usage-bar-pct {
-          font-size: 11px;
-          font-weight: 700;
-        }
-        .ubar-track {
-          height: 5px;
-          background: #f1f5f9;
-          border-radius: 99px;
-          overflow: hidden;
-        }
-        .ubar-fill {
-          height: 100%;
-          border-radius: 99px;
-          transition: width 0.8s cubic-bezier(0.22,1,0.36,1);
-        }
-
-        /* ── Main grid ── */
-        .main-grid {
-          display: grid;
-          grid-template-columns: 1fr 340px;
-          gap: 20px;
-        }
-
-        /* ── Card shared ── */
-        .card {
-          background: #fff;
-          border: 1px solid #e2e8f0;
-          border-radius: 14px;
-          overflow: hidden;
-        }
-        .card-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 18px 20px 14px;
-          border-bottom: 1px solid #f1f5f9;
-        }
-        .card-title {
-          font-size: 14px;
-          font-weight: 700;
-          color: #0f172a;
-        }
-        .card-subtitle {
-          font-size: 12px;
-          color: #94a3b8;
-          margin-top: 1px;
-        }
-        .card-link {
-          display: flex;
-          align-items: center;
-          gap: 4px;
-          font-size: 12px;
-          font-weight: 600;
-          color: #7C3AED;
-          text-decoration: none;
-        }
-        .card-link:hover { text-decoration: underline; }
-
-        /* ── Job rows ── */
-        .job-row {
-          display: flex;
-          align-items: center;
-          gap: 14px;
-          padding: 14px 20px;
-          border-bottom: 1px solid #f8fafc;
-          transition: background 0.15s;
-          text-decoration: none;
-        }
-        .job-row:last-child { border-bottom: none; }
-        .job-row:hover { background: #f8fafc; }
-
-        .job-icon {
-          width: 38px;
-          height: 38px;
-          border-radius: 10px;
-          background: rgba(124,58,237,0.08);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          flex-shrink: 0;
-        }
-        .job-info { flex: 1; min-width: 0; }
-        .job-title-text {
-          font-size: 13px;
-          font-weight: 600;
-          color: #0f172a;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-        .job-meta {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          margin-top: 3px;
-        }
-        .job-dept {
-          font-size: 11px;
-          color: #94a3b8;
-        }
-        .job-dot {
-          width: 3px;
-          height: 3px;
-          border-radius: 50%;
-          background: #cbd5e1;
-          flex-shrink: 0;
-        }
-        .job-candidates {
-          font-size: 11px;
-          color: #64748b;
-          font-weight: 500;
-        }
-
-        .job-right {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          flex-shrink: 0;
-        }
-        .status-badge {
-          font-size: 11px;
-          font-weight: 600;
-          padding: 3px 9px;
-          border-radius: 20px;
-        }
-
-        /* progress ring inside job row */
-        .screen-ring-wrap {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-        }
-        .screen-pct {
-          font-size: 11px;
-          font-weight: 700;
-          color: #7C3AED;
-        }
-
-        /* ── Empty state ── */
-        .empty-state {
-          padding: 40px 20px;
-          text-align: center;
-        }
-        .empty-icon {
-          width: 52px;
-          height: 52px;
-          border-radius: 14px;
-          background: rgba(124,58,237,0.08);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          margin: 0 auto 14px;
-        }
-        .empty-title {
-          font-size: 14px;
-          font-weight: 700;
-          color: #0f172a;
-          margin-bottom: 6px;
-        }
-        .empty-sub {
-          font-size: 13px;
-          color: #94a3b8;
-          margin-bottom: 16px;
-        }
-
-        /* ── Right column ── */
-        .right-col {
-          display: flex;
-          flex-direction: column;
-          gap: 20px;
-        }
-
-        /* ── Quick actions ── */
-        .quick-action {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          padding: 13px 16px;
-          border-radius: 10px;
-          border: 1px solid #e2e8f0;
-          background: #fff;
-          text-decoration: none;
-          cursor: pointer;
-          transition: border-color 0.2s, box-shadow 0.2s, transform 0.18s;
-          margin: 0 16px;
-        }
-        .quick-action:not(:last-child) { margin-bottom: 8px; }
-        .quick-action:last-child { margin-bottom: 16px; }
-        .quick-action:hover {
-          border-color: #7C3AED;
-          box-shadow: 0 0 0 3px rgba(124,58,237,0.08);
-          transform: translateX(3px);
-        }
-        .qa-icon {
-          width: 36px;
-          height: 36px;
-          border-radius: 9px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          flex-shrink: 0;
-        }
-        .qa-icon.purple { background: rgba(124,58,237,0.1); }
-        .qa-icon.blue   { background: rgba(59,130,246,0.1); }
-        .qa-icon.green  { background: rgba(34,197,94,0.1); }
-        .qa-text { flex: 1; }
-        .qa-label {
-          font-size: 13px;
-          font-weight: 600;
-          color: #0f172a;
-        }
-        .qa-sub {
-          font-size: 11px;
-          color: #94a3b8;
-          margin-top: 1px;
-        }
-
-        /* ── Activity feed ── */
-        .activity-item {
-          display: flex;
-          align-items: flex-start;
-          gap: 12px;
-          padding: 12px 16px;
-        }
-        .activity-item:not(:last-child) {
-          border-bottom: 1px solid #f8fafc;
-        }
-        .act-icon {
-          width: 32px;
-          height: 32px;
-          border-radius: 9px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          flex-shrink: 0;
-          margin-top: 1px;
-        }
-        .act-icon.check     { background: rgba(34,197,94,0.1);  }
-        .act-icon.briefcase { background: rgba(59,130,246,0.1); }
-        .act-icon.user      { background: rgba(245,158,11,0.1); }
-        .act-icon.zap       { background: rgba(124,58,237,0.1); }
-        .act-msg {
-          font-size: 12px;
-          color: #374151;
-          font-weight: 500;
-          line-height: 1.45;
-        }
-        .act-time {
-          font-size: 11px;
-          color: #94a3b8;
-          margin-top: 3px;
-        }
-
-        /* ── AI tip card ── */
-        .ai-tip-card {
-          background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
-          border-radius: 14px;
-          padding: 20px;
-          position: relative;
-          overflow: hidden;
-        }
-        .ai-tip-glow {
-          position: absolute;
-          width: 120px;
-          height: 120px;
-          border-radius: 50%;
-          background: rgba(124,58,237,0.3);
-          filter: blur(40px);
-          top: -20px;
-          right: -20px;
-          pointer-events: none;
-        }
-        .ai-tip-badge {
-          display: inline-flex;
-          align-items: center;
-          gap: 5px;
-          background: rgba(124,58,237,0.25);
-          border: 1px solid rgba(124,58,237,0.35);
-          border-radius: 20px;
-          padding: 3px 10px;
-          font-size: 10px;
-          font-weight: 700;
-          color: #a78bfa;
-          text-transform: uppercase;
-          letter-spacing: 0.06em;
-          margin-bottom: 10px;
-        }
-        .ai-tip-title {
-          font-size: 14px;
-          font-weight: 700;
-          color: #f1f5f9;
-          margin-bottom: 6px;
-        }
-        .ai-tip-body {
-          font-size: 12px;
-          color: #94a3b8;
-          line-height: 1.55;
-          margin-bottom: 14px;
-        }
-        .ai-tip-btn {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          padding: 8px 14px;
-          background: rgba(124,58,237,0.25);
-          border: 1px solid rgba(124,58,237,0.4);
-          border-radius: 8px;
-          font-size: 12px;
-          font-weight: 600;
-          color: #a78bfa;
-          text-decoration: none;
-          transition: background 0.2s;
-        }
-        .ai-tip-btn:hover { background: rgba(124,58,237,0.4); }
-
-        /* ── Responsive ── */
-        @media (max-width: 1100px) {
-          .stats-grid { grid-template-columns: repeat(2, 1fr); }
-          .main-grid  { grid-template-columns: 1fr; }
-          .right-col  { flex-direction: row; flex-wrap: wrap; }
-          .right-col > * { flex: 1 1 280px; }
-        }
-        @media (max-width: 640px) {
-          .dash-page  { padding: 20px 16px 40px; }
-          .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
-          .stat-value { font-size: 22px; }
-          .greeting-text { font-size: 20px; }
-          .header-actions .btn-outline { display: none; }
-          .right-col { flex-direction: column; }
-        }
-      `}</style>
-
       <div className="dash-page">
         {/* ── Trial / Expired Banner ── */}
         {isTrial && subscription && (
@@ -741,7 +260,11 @@ export default async function DashboardPage() {
               </div>
               <div>
                 <div className="trial-text-title">
-                  Free Trial — {subscription.cv_limit ?? 14} days remaining
+                  Free Trial — {daysRemaining} days remaining
+                </div>
+                <div className="trial-text-sub">
+                  {subscription.cv_limit - subscription.cvs_used_this_month} CV
+                  screenings left · Upgrade to unlock unlimited access
                 </div>
                 <div className="trial-text-sub">
                   {subscription.cvs_used_this_month} CV screenings left ·

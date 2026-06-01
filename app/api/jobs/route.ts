@@ -1,6 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import sanitizeHtml from "sanitize-html";
+
+// ── Sanitize config ───────────────────────────────────────────────────────────
+// Plain text fields — strip ALL HTML tags
+const sanitizePlain = (str: string): string =>
+  sanitizeHtml(str, { allowedTags: [], allowedAttributes: {} }).trim();
+
+// Rich text fields — allow safe formatting only
+const sanitizeRich = (str: string): string =>
+  sanitizeHtml(str, {
+    allowedTags: ["b", "i", "ul", "ol", "li", "p", "br", "strong", "em"],
+    allowedAttributes: {},
+  }).trim();
 
 // ─── Helper: generate slug from title ────────────────────────────────────────
 
@@ -77,17 +90,46 @@ export async function GET(req: NextRequest) {
       query = query.eq("status", statusFilter);
     }
 
-    const { data: jobs, error: jobsErr } = await query;
+    const [jobsResult, activeResult, draftResult, closedResult] =
+      await Promise.all([
+        query,
+        admin
+          .from("jobs")
+          .select("id", { count: "exact", head: true })
+          .eq("company_id", profile.company_id)
+          .eq("status", "active"),
+        admin
+          .from("jobs")
+          .select("id", { count: "exact", head: true })
+          .eq("company_id", profile.company_id)
+          .eq("status", "draft"),
+        admin
+          .from("jobs")
+          .select("id", { count: "exact", head: true })
+          .eq("company_id", profile.company_id)
+          .eq("status", "closed"),
+      ]);
 
-    if (jobsErr) {
-      console.error("jobs fetch error:", jobsErr);
+    if (jobsResult.error) {
+      console.error("jobs fetch error:", jobsResult.error);
       return NextResponse.json(
         { error: "Failed to fetch jobs" },
         { status: 500 },
       );
     }
 
-    return NextResponse.json({ jobs: jobs ?? [] });
+    return NextResponse.json({
+      jobs: jobsResult.data ?? [],
+      counts: {
+        total:
+          (activeResult.count ?? 0) +
+          (draftResult.count ?? 0) +
+          (closedResult.count ?? 0),
+        active: activeResult.count ?? 0,
+        draft: draftResult.count ?? 0,
+        closed: closedResult.count ?? 0,
+      },
+    });
   } catch (err) {
     console.error("GET /api/jobs error:", err);
     return NextResponse.json(
@@ -142,6 +184,7 @@ export async function POST(req: NextRequest) {
       experience_level,
       description,
       requirements,
+      responsibilities,
       skills,
       salary_min,
       salary_max,
@@ -158,22 +201,24 @@ export async function POST(req: NextRequest) {
     // 4. Insert job — get the UUID first to build the slug
     const jobId = crypto.randomUUID();
     const slug = generateSlug(title.trim(), jobId);
-
     const { data: job, error: insertErr } = await admin
       .from("jobs")
       .insert({
         id: jobId,
         company_id: profile.company_id,
         created_by: user.id,
-        title: title.trim(),
+        title: sanitizePlain(title), // ← plain text
         slug,
-        department: department ?? null,
-        location: location ?? null,
-        employment_type: employment_type ?? "full-time",
+        department: department ? sanitizePlain(department) : null,
+        location: location ? sanitizePlain(location) : null,
+        employment_type: employment_type ?? "full_time",
         experience_level: experience_level ?? "mid",
-        description: description ?? null,
-        requirements: requirements ?? null,
-        skills: skills ?? [],
+        description: description ? sanitizeRich(description) : null,
+        requirements: requirements ? sanitizeRich(requirements) : null,
+        responsibilities: responsibilities
+          ? sanitizeRich(responsibilities)
+          : null,
+        skills: (skills ?? []).map(sanitizePlain),
         salary_min: salary_min ?? null,
         salary_max: salary_max ?? null,
         status: ["draft", "active"].includes(status) ? status : "draft",

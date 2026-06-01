@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import jsPDF from "jspdf";
 
 import {
   ArrowLeft,
@@ -163,6 +164,23 @@ function avatarColor(name: string) {
   const idx = name.charCodeAt(0) % AVATAR_COLORS.length;
   return AVATAR_COLORS[idx];
 }
+// ── URL Safety Validator ────
+
+function isSafeUrl(url: string | null | undefined): url is string {
+  if (!url) return false; // null or undefined
+  if (typeof url !== "string") return false; // wrong type
+  if (url.trim() === "") return false; // empty string
+
+  try {
+    const parsed = new URL(url);
+    return (
+      parsed.protocol === "https:" && // must be HTTPS
+      parsed.hostname.length > 0 // must have a real host
+    );
+  } catch {
+    return false; // malformed URL
+  }
+}
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -185,20 +203,68 @@ export default function JobDetailPage() {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [updatingIds, setUpdatingIds] = useState<Set<string>>(new Set());
+  // ── Helper functions — add and remove IDs from the Set cleanly ──
+  const lockCandidate = (id: string) =>
+    setUpdatingIds((prev) => new Set(prev).add(id));
 
-  // ── Fetch ──────────────────────────────────────────────────────────────────
+  const unlockCandidate = (id: string) =>
+    setUpdatingIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    const res = await fetch(`/api/jobs/${id}`);
-    const json = await res.json();
-    if (json.job) setJob(json.job as Job);
-    if (json.candidates) setCandidates(json.candidates as Candidate[]);
-    setLoading(false);
-  }, [id]);
+  // ── Fetch ──────
+
+  const fetchData = useCallback(
+    async (silent = false) => {
+      // silent = true means don't show loading spinner — used for polling
+      if (!silent) setLoading(true);
+      try {
+        const res = await fetch(`/api/jobs/${id}`);
+        if (!res.ok) throw new Error("Failed to fetch");
+        const json = await res.json();
+        if (json.job) setJob(json.job as Job);
+        if (json.candidates) setCandidates(json.candidates as Candidate[]);
+      } catch (err) {
+        console.error("fetchData error:", err);
+      } finally {
+        if (!silent) setLoading(false);
+      }
+    },
+    [id],
+  );
+
+  // Initial load
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // ── Polling — re-fetch every 8 seconds when candidates are processing ──────
+  useEffect(() => {
+    const hasProcessing = candidates.some(
+      (c) =>
+        c.screening_status === "processing" || c.screening_status === "pending", // ← poll for pending too
+    );
+
+    if (!hasProcessing) return; // no polling needed — stop here
+
+    const interval = setInterval(() => {
+      fetchData(true); // silent fetch — no loading flash
+    }, 8000);
+
+    return () => clearInterval(interval); // cleanup on unmount
+  }, [candidates, fetchData]);
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+  useEffect(() => {
+    if (!deleteError) return;
+    const timer = setTimeout(() => setDeleteError(null), 4000);
+    return () => clearTimeout(timer);
+  }, [deleteError]);
 
   // ── Actions ────────────────────────────────────────────────────────────────
 
@@ -215,17 +281,40 @@ export default function JobDetailPage() {
     candidateId: string,
     status: CandidateStatus,
   ) => {
-    setUpdatingId(candidateId);
-    await fetch(`/api/screening/${candidateId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ decision: status, notes: "" }),
-    });
+    // Block if this specific candidate already has an action in flight
+    if (updatingIds.has(candidateId)) return;
+
+    const previousCandidates = candidates;
+
+    // Lock this candidate
+    lockCandidate(candidateId);
+
+    // Optimistic update
     setCandidates((prev) =>
       prev.map((c) => (c.id === candidateId ? { ...c, status } : c)),
     );
-    setUpdatingId(null);
     setOpenMenu(null);
+
+    try {
+      const res = await fetch(`/api/screening/${candidateId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision: status, notes: "" }),
+      });
+
+      if (!res.ok) {
+        const { error } = await res.json().catch(() => ({
+          error: "Unknown error",
+        }));
+        console.error("Status update failed:", error);
+        setCandidates(previousCandidates); // rollback
+      }
+    } catch (err) {
+      console.error("handleStatusChange error:", err);
+      setCandidates(previousCandidates); // rollback
+    } finally {
+      unlockCandidate(candidateId); // always unlock
+    }
   };
 
   const handleJobStatusChange = async (status: JobStatus) => {
@@ -239,12 +328,300 @@ export default function JobDetailPage() {
   };
 
   const handleDelete = async (candidateId: string) => {
+    // Block if this candidate already has an action in flight
+    if (updatingIds.has(candidateId)) return;
+
     if (!confirm("Remove this candidate?")) return;
-    await fetch(`/api/candidates/${candidateId}`, {
-      method: "DELETE",
-    });
+
+    const previousCandidates = candidates;
+
+    // Lock this candidate
+    lockCandidate(candidateId);
+
     setCandidates((prev) => prev.filter((c) => c.id !== candidateId));
     setOpenMenu(null);
+
+    try {
+      const res = await fetch(`/api/candidates/${candidateId}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        const { error } = await res.json().catch(() => ({
+          error: "Unknown error",
+        }));
+        console.error("Delete failed:", error);
+        setCandidates(previousCandidates);
+        setDeleteError("Failed to remove candidate. Please try again.");
+      }
+    } catch (err) {
+      console.error("handleDelete error:", err);
+      setCandidates(previousCandidates);
+      setDeleteError("Network error — candidate was not removed.");
+    } finally {
+      unlockCandidate(candidateId); // always unlock
+    }
+  };
+
+  const handleExportPDF = () => {
+    if (!job) return;
+
+    const doc = new jsPDF({
+      orientation: "portrait",
+      unit: "mm",
+      format: "a4",
+    });
+    const pageW = 210;
+    const margin = 20;
+    const contentW = pageW - margin * 2;
+
+    // ── Helper functions ────
+
+    const addPage = () => {
+      doc.addPage();
+      return margin;
+    };
+
+    const checkPageBreak = (y: number, needed: number): number => {
+      if (y + needed > 275) return addPage();
+      return y;
+    };
+
+    const drawLine = (y: number, color = "#e2e8f0") => {
+      doc.setDrawColor(color);
+      doc.line(margin, y, pageW - margin, y);
+      return y + 5;
+    };
+
+    // ── Page 1 — Cover / Summary ───
+
+    // Purple header bar
+    doc.setFillColor("#7C3AED");
+    doc.rect(0, 0, pageW, 42, "F");
+
+    // Brand name
+    doc.setFontSize(22);
+    doc.setTextColor("#ffffff");
+    doc.setFont("helvetica", "bold");
+    doc.text("SahiScreen", margin, 18);
+
+    // Tagline
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor("rgba(255,255,255,0.75)");
+    doc.text("AI-Powered Candidate Screening Report", margin, 26);
+
+    // Date
+    doc.setFontSize(9);
+    doc.text(
+      `Generated: ${new Date().toLocaleDateString("en-PK", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      })}`,
+      pageW - margin,
+      26,
+      { align: "right" },
+    );
+
+    // Job title
+    doc.setFontSize(18);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor("#0f172a");
+    doc.text(job.title, margin, 58);
+
+    // Job meta row
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor("#64748b");
+    const metaParts = [
+      job.department,
+      job.location,
+      employmentLabels[job.employment_type] ?? job.employment_type,
+    ]
+      .filter(Boolean)
+      .join("   ·   ");
+    doc.text(metaParts, margin, 66);
+
+    // Divider
+    let y = drawLine(72);
+
+    // ── Stats boxes ─────
+    y += 4;
+    const stats = [
+      { label: "Total Candidates", value: String(candidates.length) },
+      { label: "AI Screened", value: String(screened) },
+      { label: "Shortlisted", value: String(shortlisted) },
+      { label: "Avg AI Score", value: avgScore ? `${avgScore}/100` : "N/A" },
+    ];
+
+    const boxW = contentW / 4 - 3;
+    stats.forEach((stat, i) => {
+      const x = margin + i * (boxW + 4);
+
+      // Box background
+      doc.setFillColor("#f8fafc");
+      doc.setDrawColor("#e2e8f0");
+      doc.roundedRect(x, y, boxW, 22, 3, 3, "FD");
+
+      // Value
+      doc.setFontSize(16);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor("#7C3AED");
+      doc.text(stat.value, x + boxW / 2, y + 10, { align: "center" });
+
+      // Label
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor("#64748b");
+      doc.text(stat.label, x + boxW / 2, y + 17, { align: "center" });
+    });
+
+    y += 30;
+    y = drawLine(y);
+
+    // ── Section title ─────
+    y += 4;
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor("#0f172a");
+    doc.text(`Candidate Report  (${filtered.length} shown)`, margin, y);
+    y += 10;
+
+    // ── Candidate entries ────
+
+    filtered.forEach((c, index) => {
+      const sc = scoreColor(c.ai_score);
+      const stCfg = candidateStatusConfig[c.status];
+
+      // Estimate height needed for this candidate block
+      const summaryLines = c.ai_summary
+        ? doc.splitTextToSize(c.ai_summary, contentW - 20).length
+        : 0;
+      const strengthLines = (c.ai_strengths ?? []).length;
+      const flagLines = (c.ai_red_flags ?? []).length;
+      const estimatedHeight =
+        28 + summaryLines * 5 + (strengthLines + flagLines) * 5 + 20;
+
+      y = checkPageBreak(y, estimatedHeight);
+
+      // ── Candidate header row ───
+
+      // Index + name
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor("#0f172a");
+      doc.text(`${index + 1}.  ${c.candidate_name}`, margin, y);
+
+      // Score badge — right aligned
+      if (c.ai_score !== null) {
+        doc.setFillColor(sc.bg.replace("rgba(", "").replace(")", ""));
+        doc.setFontSize(11);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(sc.color);
+        doc.text(`Score: ${c.ai_score}/100  ${sc.label}`, pageW - margin, y, {
+          align: "right",
+        });
+      }
+
+      y += 6;
+
+      // Email + meta
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor("#64748b");
+      const meta = [
+        c.candidate_email,
+        c.candidate_phone,
+        c.years_experience != null ? `${c.years_experience}y exp` : null,
+        c.university,
+      ]
+        .filter(Boolean)
+        .join("   ·   ");
+      doc.text(meta, margin + 6, y);
+
+      // Status badge
+      doc.setTextColor(stCfg.color);
+      doc.setFont("helvetica", "bold");
+      doc.text(`● ${stCfg.label}`, pageW - margin, y, { align: "right" });
+
+      y += 8;
+
+      // ── AI Summary ───
+      if (c.ai_summary) {
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "italic");
+        doc.setTextColor("#374151");
+        const lines = doc.splitTextToSize(c.ai_summary, contentW - 10);
+        doc.text(lines, margin + 6, y);
+        y += lines.length * 4.5 + 4;
+      }
+
+      // ── Strengths ──
+      if (c.ai_strengths && c.ai_strengths.length > 0) {
+        y = checkPageBreak(y, c.ai_strengths.length * 5 + 8);
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor("#16a34a");
+        doc.text("Strengths", margin + 6, y);
+        y += 5;
+
+        c.ai_strengths.forEach((s) => {
+          y = checkPageBreak(y, 6);
+          doc.setFont("helvetica", "normal");
+          doc.setTextColor("#374151");
+          const sLines = doc.splitTextToSize(`• ${s}`, contentW - 16);
+          doc.text(sLines, margin + 10, y);
+          y += sLines.length * 4.5;
+        });
+        y += 2;
+      }
+
+      // ── Red flags ─
+      if (c.ai_red_flags && c.ai_red_flags.length > 0) {
+        y = checkPageBreak(y, c.ai_red_flags.length * 5 + 8);
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor("#ef4444");
+        doc.text("Red Flags", margin + 6, y);
+        y += 5;
+
+        c.ai_red_flags.forEach((f) => {
+          y = checkPageBreak(y, 6);
+          doc.setFont("helvetica", "normal");
+          doc.setTextColor("#374151");
+          const fLines = doc.splitTextToSize(`• ${f}`, contentW - 16);
+          doc.text(fLines, margin + 10, y);
+          y += fLines.length * 4.5;
+        });
+        y += 2;
+      }
+
+      // Separator between candidates
+      y += 3;
+      y = drawLine(y, "#f1f5f9");
+      y += 4;
+    });
+
+    // ── Footer on every page ──────────────────────────────────────────────────
+    const totalPages = doc.getNumberOfPages();
+    for (let p = 1; p <= totalPages; p++) {
+      doc.setPage(p);
+      doc.setFontSize(8);
+      doc.setTextColor("#94a3b8");
+      doc.setFont("helvetica", "normal");
+      doc.text("Generated by SahiScreen · sahiscreen.com", margin, 290);
+      doc.text(`Page ${p} of ${totalPages}`, pageW - margin, 290, {
+        align: "right",
+      });
+    }
+
+    // ── Save ──────────────────────────────────────────────────────────────────
+    doc.save(
+      `${job.title.replace(/\s+/g, "-")}-screening-report-${new Date()
+        .toISOString()
+        .slice(0, 10)}.pdf`,
+    );
   };
   // ── Filter + sort ──────────────────────────────────────────────────────────
 
@@ -279,15 +656,23 @@ export default function JobDetailPage() {
   const screened = candidates.filter(
     (c) => c.screening_status === "completed",
   ).length;
+
+  // Use same array for both sum and count — prevents mismatched denominator
+  const scoredCandidates = candidates.filter((c) => c.ai_score !== null);
   const avgScore =
-    screened > 0
+    scoredCandidates.length > 0
       ? Math.round(
-          candidates
-            .filter((c) => c.ai_score)
-            .reduce((s, c) => s + (c.ai_score ?? 0), 0) / screened,
+          scoredCandidates.reduce((s, c) => s + (c.ai_score ?? 0), 0) /
+            scoredCandidates.length,
         )
       : null;
-
+  // Pre-compute ranks once — O(n log n) instead of O(n²) inside map
+  const rankMap = useMemo(() => {
+    const sorted = [...candidates]
+      .filter((c) => c.ai_score !== null)
+      .sort((a, b) => (b.ai_score ?? 0) - (a.ai_score ?? 0));
+    return new Map(sorted.map((c, i) => [c.id, i + 1]));
+  }, [candidates]);
   if (loading)
     return (
       <div
@@ -908,10 +1293,43 @@ export default function JobDetailPage() {
             <TrendingUp size={13} />
             {sortBy === "score" ? "By Score" : "By Date"}
           </button>
-
-          {/* Export */}
-          <button className="btn-outline" style={{ marginLeft: "auto" }}>
-            <Download size={13} /> Export
+          {/* Auto-refresh indicator */}
+          {candidates.some(
+            (c) =>
+              c.screening_status === "processing" ||
+              c.screening_status === "pending",
+          ) && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                fontSize: "12px",
+                fontWeight: 600,
+                color: "#7C3AED",
+                background: "rgba(124,58,237,0.06)",
+                border: "1px solid rgba(124,58,237,0.15)",
+                borderRadius: "8px",
+                padding: "6px 12px",
+              }}
+            >
+              <RefreshCw size={12} className="spinning" />
+              Auto-updating...
+            </div>
+          )}
+          <button
+            className="btn-outline"
+            style={{ marginLeft: "auto" }}
+            onClick={handleExportPDF}
+            disabled={candidates.length === 0}
+            title={
+              candidates.length === 0
+                ? "No candidates to export"
+                : "Export PDF report"
+            }
+          >
+            <Download size={13} />
+            Export PDF
           </button>
         </div>
 
@@ -961,11 +1379,7 @@ export default function JobDetailPage() {
             const [fg, bg] = avatarColor(candidate.candidate_name);
             const isExpanded = expandedId === candidate.id;
             const rank =
-              sortBy === "score" && candidate.ai_score
-                ? candidates.filter(
-                    (c) => (c.ai_score ?? 0) > (candidate.ai_score ?? 0),
-                  ).length + 1
-                : null;
+              sortBy === "score" ? (rankMap.get(candidate.id) ?? null) : null;
 
             return (
               <div key={candidate.id} className="candidate-card">
@@ -1116,15 +1530,33 @@ export default function JobDetailPage() {
                           className="dropdown"
                           onClick={(e) => e.stopPropagation()}
                         >
-                          <a
-                            href={candidate.cv_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                          {isSafeUrl(candidate.cv_url) ? (
+                            <a
+                              href={candidate.cv_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="ai-btn view"
+                            >
+                              <ExternalLink size={13} /> View Full CV
+                            </a>
+                          ) : (
+                            <div
+                              className="ai-btn view"
+                              style={{ opacity: 0.4, cursor: "not-allowed" }}
+                              title="CV file not available"
+                            >
+                              <ExternalLink size={13} /> CV Unavailable
+                            </div>
+                          )}
+                          ) : (
+                          <div
                             className="drop-item"
-                            onClick={() => setOpenMenu(null)}
+                            style={{ opacity: 0.4, cursor: "not-allowed" }}
+                            title="CV file not available"
                           >
-                            <ExternalLink size={13} /> View CV
-                          </a>
+                            <ExternalLink size={13} /> CV Unavailable
+                          </div>
+                          )
                           <div className="drop-divider" />
                           <div
                             className="drop-item"
@@ -1247,10 +1679,10 @@ export default function JobDetailPage() {
                           onClick={() =>
                             handleStatusChange(candidate.id, "shortlisted")
                           }
-                          disabled={updatingId === candidate.id}
+                          disabled={updatingIds.has(candidate.id)}
                         >
                           <CheckCircle2 size={13} />
-                          {updatingId === candidate.id
+                          {updatingIds.has(candidate.id)
                             ? "Saving..."
                             : "Shortlist Candidate"}
                         </button>
@@ -1261,7 +1693,7 @@ export default function JobDetailPage() {
                           onClick={() =>
                             handleStatusChange(candidate.id, "rejected")
                           }
-                          disabled={updatingId === candidate.id}
+                          disabled={updatingIds.has(candidate.id)}
                         >
                           <XCircle size={13} /> Reject
                         </button>
@@ -1323,6 +1755,57 @@ export default function JobDetailPage() {
             );
           })}
         </div>
+        {/* ── Delete Error Banner ── */}
+        {deleteError && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "12px",
+              padding: "13px 18px",
+              background: "rgba(239,68,68,0.06)",
+              border: "1px solid rgba(239,68,68,0.2)",
+              borderRadius: "12px",
+              marginBottom: "16px",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+              }}
+            >
+              <AlertTriangle size={16} color="#ef4444" />
+              <span
+                style={{
+                  fontSize: "13px",
+                  color: "#dc2626",
+                  fontWeight: 500,
+                }}
+              >
+                {deleteError}
+              </span>
+            </div>
+            <button
+              onClick={() => setDeleteError(null)}
+              style={{
+                padding: "6px 14px",
+                background: "transparent",
+                border: "1px solid rgba(239,68,68,0.3)",
+                borderRadius: "8px",
+                fontSize: "12px",
+                fontWeight: 700,
+                color: "#dc2626",
+                cursor: "pointer",
+                flexShrink: 0,
+              }}
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
       </div>
     </>
   );

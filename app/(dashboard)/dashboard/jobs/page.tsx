@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
@@ -21,6 +21,7 @@ import {
   TrendingUp,
   AlertCircle,
 } from "lucide-react";
+import "../../../Style/jobs.css";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -94,9 +95,37 @@ function timeAgo(dateStr: string) {
   });
 }
 
-function copyLink(slug: string) {
+async function copyLink(slug: string): Promise<boolean> {
   const url = `${window.location.origin}/apply/${slug}`;
-  navigator.clipboard.writeText(url);
+
+  // Method 1 — modern clipboard API (HTTPS only)
+  if (navigator.clipboard && window.isSecureContext) {
+    try {
+      await navigator.clipboard.writeText(url);
+      return true;
+    } catch (err) {
+      console.error("Clipboard API failed:", err);
+      // fall through to Method 2
+    }
+  }
+
+  // Method 2 — legacy execCommand fallback (HTTP or older browsers)
+  try {
+    const textarea = document.createElement("textarea");
+    textarea.value = url;
+    textarea.style.position = "fixed"; // prevent page scroll
+    textarea.style.opacity = "0"; // invisible
+    textarea.style.pointerEvents = "none"; // unclickable
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+    const success = document.execCommand("copy");
+    document.body.removeChild(textarea);
+    return success;
+  } catch (err) {
+    console.error("execCommand fallback failed:", err);
+    return false;
+  }
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -106,38 +135,69 @@ export default function JobsPage() {
 
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
+  const [counts, setCounts] = useState({
+    total: 0,
+    active: 0,
+    draft: 0,
+    closed: 0,
+  });
+  const [statusError, setStatusError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<"all" | JobStatus>("all");
   const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [companyId, setCompanyId] = useState<string>("");
+  const [copyFailed, setCopyFailed] = useState<string | null>(null);
+  const [failedUrl, setFailedUrl] = useState<string>("");
+  const [updatingJobId, setUpdatingJobId] = useState<string | null>(null);
 
   // fetch jobs
   const fetchJobs = useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/jobs");
-    const { jobs } = await res.json();
-    setJobs(jobs ?? []);
-    setLoading(false);
+    setFetchError(false);
+    try {
+      const res = await fetch("/api/jobs");
+
+      if (!res.ok) {
+        setFetchError(true);
+        setJobs([]);
+        return;
+      }
+
+      const { jobs, counts: apiCounts } = await res.json();
+      setJobs(jobs ?? []);
+
+      // Use API counts if returned, fall back to computing from array
+      if (apiCounts) {
+        setCounts(apiCounts);
+      } else {
+        // fallback — safe for old API responses during deployment
+        setCounts({
+          total: (jobs ?? []).length,
+          active: (jobs ?? []).filter((j: Job) => j.status === "active").length,
+          draft: (jobs ?? []).filter((j: Job) => j.status === "draft").length,
+          closed: (jobs ?? []).filter((j: Job) => j.status === "closed").length,
+        });
+      }
+    } catch (err) {
+      setFetchError(true);
+      setJobs([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
-    (async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data: profile } = await supabase
-        .from("users")
-        .select("company_id")
-        .eq("id", user.id)
-        .single();
-      if (profile?.company_id) {
-        setCompanyId(profile.company_id);
-        fetchJobs();
-      }
-    })();
-  }, [supabase, fetchJobs]);
+    fetchJobs();
+  }, [fetchJobs]);
+  useEffect(() => {
+    if (!statusError) return;
+    const timer = setTimeout(() => setStatusError(null), 4000);
+    return () => clearTimeout(timer);
+  }, [statusError]);
+  const handleCloseMenu = useCallback(() => setOpenMenu(null), []);
+  useOutsideClick(menuRef, handleCloseMenu, openMenu !== null);
 
   // filtered list
   const filtered = jobs.filter((j) => {
@@ -150,249 +210,144 @@ export default function JobsPage() {
   });
 
   // stats
-  const totalActive = jobs.filter((j) => j.status === "active").length;
-  const totalDraft = jobs.filter((j) => j.status === "draft").length;
-  const totalClosed = jobs.filter((j) => j.status === "closed").length;
+  const totalActive = counts.active;
+  const totalDraft = counts.draft;
+  const totalClosed = counts.closed;
   const totalScreened = jobs.reduce((s, j) => s + (j.screened_count ?? 0), 0);
 
   // handle copy link
-  const handleCopy = (job: Job) => {
-    copyLink(job.slug);
-    setCopiedId(job.id);
-    setTimeout(() => setCopiedId(null), 2000);
+  const handleCopy = async (job: Job) => {
+    const success = await copyLink(job.slug);
+
+    if (success) {
+      // ✅ Copy worked — show green "Copied!" feedback
+      setCopiedId(job.id);
+      setTimeout(() => setCopiedId(null), 2000);
+    } else {
+      // ❌ Copy failed — show the URL so user can copy manually
+      setCopyFailed(job.id);
+      setFailedUrl(`${window.location.origin}/apply/${job.slug}`);
+      setTimeout(() => {
+        setCopyFailed(null);
+        setFailedUrl("");
+      }, 6000);
+    }
+
     setOpenMenu(null);
   };
 
   // handle status change
-  const handleStatusChange = async (jobId: string, status: JobStatus) => {
-    await fetch(`/api/jobs/${jobId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
-    });
-    setJobs((prev) => prev.map((j) => (j.id === jobId ? { ...j, status } : j)));
+  const handleStatusChange = async (jobId: string, newStatus: JobStatus) => {
+    // Block if this job already has a pending request
+    if (updatingJobId === jobId) return;
+
+    if (newStatus === "closed") {
+      const confirmed = window.confirm(
+        "Close this job? It will stop accepting new applications.",
+      );
+      if (!confirmed) return;
+    }
+
+    const previousJobs = jobs;
+    const previousCounts = counts;
+    const oldStatus = jobs.find((j) => j.id === jobId)?.status;
+
+    // Lock this job — blocks all further clicks
+    setUpdatingJobId(jobId);
+
+    setJobs((prev) =>
+      prev.map((j) => (j.id === jobId ? { ...j, status: newStatus } : j)),
+    );
+
+    if (oldStatus && oldStatus !== newStatus) {
+      setCounts((prev) => ({
+        ...prev,
+        [oldStatus]: Math.max(0, prev[oldStatus] - 1),
+        [newStatus]: prev[newStatus] + 1,
+      }));
+    }
     setOpenMenu(null);
+
+    try {
+      const res = await fetch(`/api/jobs/${jobId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+
+      if (!res.ok) {
+        // Step 3a — API failed, roll back to snapshot
+        const { error } = await res
+          .json()
+          .catch(() => ({ error: "Unknown error" }));
+        setJobs(previousJobs);
+        setCounts(previousCounts);
+        setStatusError(`Failed to update status: ${error ?? res.status}`);
+        setUpdatingJobId(null);
+        return;
+      }
+      setUpdatingJobId(null);
+    } catch (err) {
+      // Step 3b — Network crashed, roll back to snapshot
+      console.error("handleStatusChange error:", err);
+      setJobs(previousJobs);
+      setCounts(previousCounts);
+      setStatusError("Network error — status change was not saved.");
+      setUpdatingJobId(null);
+    }
   };
+  // ─── Hook: close menu on outside click or Escape ──────────────────────────
+
+  function useOutsideClick(
+    ref: React.RefObject<HTMLElement | null>,
+    onClose: () => void,
+    enabled: boolean,
+  ) {
+    useEffect(() => {
+      if (!enabled) return;
+
+      let startX = 0;
+      let startY = 0;
+
+      // Track where the pointer went DOWN
+      const handlePointerDown = (e: PointerEvent) => {
+        startX = e.clientX;
+        startY = e.clientY;
+      };
+
+      // Only close if pointer UP is in same spot — real tap not scroll
+      const handlePointerUp = (e: PointerEvent) => {
+        const dx = Math.abs(e.clientX - startX);
+        const dy = Math.abs(e.clientY - startY);
+        const isScroll = dx > 8 || dy > 8; // moved more than 8px = scroll
+
+        if (isScroll) return; // ignore scroll gestures
+
+        if (ref.current && !ref.current.contains(e.target as Node)) {
+          onClose();
+        }
+      };
+
+      // Close on Escape key
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === "Escape") onClose();
+      };
+
+      document.addEventListener("pointerdown", handlePointerDown);
+      document.addEventListener("pointerup", handlePointerUp);
+      document.addEventListener("keydown", handleKeyDown);
+
+      return () => {
+        document.removeEventListener("pointerdown", handlePointerDown);
+        document.removeEventListener("pointerup", handlePointerUp);
+        document.removeEventListener("keydown", handleKeyDown);
+      };
+    }, [ref, onClose, enabled]);
+  }
 
   return (
     <>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-        * { box-sizing: border-box; }
-
-        .jobs-page {
-          min-height: 100%;
-          background: #f8fafc;
-          padding: 28px 32px 48px;
-          font-family: 'Plus Jakarta Sans', sans-serif;
-        }
-
-        /* ── Fade up ── */
-        @keyframes fadeUp {
-          from { opacity:0; transform:translateY(14px); }
-          to   { opacity:1; transform:translateY(0); }
-        }
-        .reveal { animation: fadeUp 0.4s cubic-bezier(0.22,1,0.36,1) both; }
-        .r1{animation-delay:.04s} .r2{animation-delay:.10s}
-        .r3{animation-delay:.16s} .r4{animation-delay:.22s}
-
-        /* ── Page header ── */
-        .page-top {
-          display:flex; align-items:flex-start;
-          justify-content:space-between; gap:16px;
-          margin-bottom:24px; flex-wrap:wrap;
-        }
-        .page-title  { font-size:22px; font-weight:800; color:#0f172a; letter-spacing:-.4px; }
-        .page-sub    { font-size:13px; color:#64748b; margin-top:3px; font-weight:500; }
-        .btn-primary {
-          display:flex; align-items:center; gap:7px;
-          padding:9px 18px; border-radius:10px;
-          background:linear-gradient(135deg,#7C3AED,#5b21b6);
-          border:none; font-size:13px; font-weight:700; color:#fff;
-          cursor:pointer; text-decoration:none;
-          box-shadow:0 4px 12px rgba(124,58,237,.28);
-          transition:transform .18s, box-shadow .18s;
-          font-family:'Plus Jakarta Sans',sans-serif;
-          white-space:nowrap;
-        }
-        .btn-primary:hover { transform:translateY(-1px); box-shadow:0 6px 18px rgba(124,58,237,.36); }
-
-        /* ── Mini stats ── */
-        .mini-stats {
-          display:grid; grid-template-columns:repeat(4,1fr);
-          gap:14px; margin-bottom:22px;
-        }
-        .mini-stat {
-          background:#fff; border:1px solid #e2e8f0; border-radius:12px;
-          padding:16px 18px; display:flex; align-items:center; gap:12px;
-          transition:box-shadow .2s;
-        }
-        .mini-stat:hover { box-shadow:0 4px 16px rgba(0,0,0,.06); }
-        .ms-icon {
-          width:38px; height:38px; border-radius:10px;
-          display:flex; align-items:center; justify-content:center; flex-shrink:0;
-        }
-        .ms-val  { font-size:20px; font-weight:800; color:#0f172a; letter-spacing:-.5px; }
-        .ms-lbl  { font-size:11px; color:#64748b; font-weight:500; margin-top:1px; }
-
-        /* ── Toolbar ── */
-        .toolbar {
-          display:flex; align-items:center; gap:12px;
-          margin-bottom:18px; flex-wrap:wrap;
-        }
-        .search-wrap {
-          position:relative; flex:1; min-width:200px; max-width:340px;
-        }
-        .search-ico {
-          position:absolute; left:12px; top:50%; transform:translateY(-50%);
-          pointer-events:none;
-        }
-        .search-input {
-          width:100%; padding:9px 12px 9px 38px;
-          border:1.5px solid #e2e8f0; border-radius:10px;
-          font-size:13px; font-family:'Plus Jakarta Sans',sans-serif;
-          color:#0f172a; background:#fff; outline:none;
-          transition:border-color .2s, box-shadow .2s;
-        }
-        .search-input::placeholder { color:#94a3b8; }
-        .search-input:focus { border-color:#7C3AED; box-shadow:0 0 0 3px rgba(124,58,237,.08); }
-
-        /* ── Status tabs ── */
-        .tabs-wrap { display:flex; gap:6px; flex-wrap:wrap; }
-        .tab-btn {
-          padding:7px 14px; border-radius:8px; border:1.5px solid #e2e8f0;
-          background:#fff; font-size:12px; font-weight:600; color:#64748b;
-          cursor:pointer; transition:all .18s;
-          font-family:'Plus Jakarta Sans',sans-serif;
-        }
-        .tab-btn:hover   { border-color:#c4b5fd; color:#7C3AED; }
-        .tab-btn.active  { border-color:#7C3AED; background:rgba(124,58,237,.07); color:#7C3AED; }
-
-        /* ── Job card ── */
-        .jobs-list { display:flex; flex-direction:column; gap:12px; }
-
-        .job-card {
-          background:#fff; border:1px solid #e2e8f0; border-radius:14px;
-          padding:18px 20px; display:flex; align-items:center; gap:16px;
-          transition:box-shadow .2s, transform .18s; position:relative;
-        }
-        .job-card:hover { box-shadow:0 6px 24px rgba(0,0,0,.07); transform:translateY(-1px); }
-
-        .job-card-icon {
-          width:46px; height:46px; border-radius:12px;
-          background:rgba(124,58,237,.08);
-          display:flex; align-items:center; justify-content:center; flex-shrink:0;
-        }
-
-        .job-card-info { flex:1; min-width:0; }
-        .job-card-title {
-          font-size:14px; font-weight:700; color:#0f172a;
-          white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-        }
-        .job-card-meta {
-          display:flex; align-items:center; gap:8px; margin-top:5px; flex-wrap:wrap;
-        }
-        .meta-chip {
-          font-size:11px; color:#64748b; font-weight:500;
-          display:flex; align-items:center; gap:4px;
-        }
-        .meta-dot { width:3px; height:3px; border-radius:50%; background:#cbd5e1; flex-shrink:0; }
-
-        /* screening progress */
-        .screen-progress { display:flex; flex-direction:column; gap:4px; min-width:110px; }
-        .sp-row { display:flex; justify-content:space-between; }
-        .sp-label { font-size:11px; color:#94a3b8; }
-        .sp-pct   { font-size:11px; font-weight:700; color:#7C3AED; }
-        .sp-track { height:4px; background:#f1f5f9; border-radius:99px; overflow:hidden; }
-        .sp-fill  { height:100%; border-radius:99px; background:linear-gradient(90deg,#7C3AED,#a78bfa); }
-
-        /* status badge */
-        .status-badge {
-          display:inline-flex; align-items:center; gap:5px;
-          font-size:11px; font-weight:600; padding:4px 10px; border-radius:20px;
-          white-space:nowrap;
-        }
-
-        /* actions */
-        .card-actions { display:flex; align-items:center; gap:8px; flex-shrink:0; }
-        .action-btn {
-          display:flex; align-items:center; gap:6px;
-          padding:7px 13px; border-radius:9px; border:1.5px solid #e2e8f0;
-          background:#fff; font-size:12px; font-weight:600; color:#374151;
-          cursor:pointer; text-decoration:none; white-space:nowrap;
-          transition:border-color .2s, color .2s, box-shadow .2s;
-          font-family:'Plus Jakarta Sans',sans-serif;
-        }
-        .action-btn:hover { border-color:#7C3AED; color:#7C3AED; box-shadow:0 0 0 3px rgba(124,58,237,.08); }
-        .action-btn.copied { border-color:#22c55e; color:#16a34a; }
-
-        /* 3-dot menu */
-        .menu-wrap { position:relative; }
-        .menu-trigger {
-          width:34px; height:34px; border-radius:9px; border:1.5px solid #e2e8f0;
-          background:#fff; display:flex; align-items:center; justify-content:center;
-          cursor:pointer; transition:border-color .2s;
-        }
-        .menu-trigger:hover { border-color:#7C3AED; }
-        .dropdown-menu {
-          position:absolute; right:0; top:calc(100% + 6px);
-          background:#fff; border:1px solid #e2e8f0;
-          border-radius:12px; padding:6px;
-          box-shadow:0 10px 40px rgba(0,0,0,.12);
-          min-width:160px; z-index:50;
-        }
-        .drop-item {
-          display:flex; align-items:center; gap:9px;
-          padding:9px 12px; border-radius:8px; font-size:13px; font-weight:500;
-          color:#374151; cursor:pointer; transition:background .15s;
-          white-space:nowrap;
-        }
-        .drop-item:hover { background:#f8fafc; color:#0f172a; }
-        .drop-item.danger { color:#ef4444; }
-        .drop-item.danger:hover { background:rgba(239,68,68,.06); }
-        .drop-divider { height:1px; background:#f1f5f9; margin:4px 0; }
-
-        /* ── Empty state ── */
-        .empty-state {
-          background:#fff; border:1px dashed #e2e8f0; border-radius:16px;
-          padding:56px 24px; text-align:center;
-        }
-        .empty-icon {
-          width:60px; height:60px; border-radius:16px; background:rgba(124,58,237,.08);
-          display:flex; align-items:center; justify-content:center; margin:0 auto 16px;
-        }
-        .empty-title { font-size:16px; font-weight:700; color:#0f172a; margin-bottom:6px; }
-        .empty-sub   { font-size:13px; color:#94a3b8; margin-bottom:20px; max-width:320px; margin-left:auto; margin-right:auto; }
-
-        /* ── Skeleton ── */
-        @keyframes shimmer {
-          from { background-position:-400px 0; }
-          to   { background-position:400px 0; }
-        }
-        .skeleton {
-          background:linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%);
-          background-size:800px 100%; animation:shimmer 1.4s infinite;
-          border-radius:8px;
-        }
-        .skel-card {
-          background:#fff; border:1px solid #e2e8f0; border-radius:14px;
-          padding:18px 20px; display:flex; align-items:center; gap:16px;
-        }
-
-        /* ── Responsive ── */
-        @media (max-width:900px) {
-          .mini-stats { grid-template-columns:repeat(2,1fr); }
-          .screen-progress { display:none; }
-        }
-        @media (max-width:640px) {
-          .jobs-page  { padding:20px 16px 40px; }
-          .mini-stats { grid-template-columns:repeat(2,1fr); gap:10px; }
-          .card-actions .action-btn span { display:none; }
-          .job-card   { flex-wrap:wrap; }
-        }
-      `}</style>
-
-      <div className="jobs-page" onClick={() => setOpenMenu(null)}>
+      <div className="jobs-page">
         {/* ── Header ── */}
         <div className="page-top reveal r1">
           <div>
@@ -492,6 +447,166 @@ export default function JobsPage() {
             ))}
           </div>
         </div>
+        {/* ── Error Banner ── */}
+        {fetchError && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "12px",
+              padding: "13px 18px",
+              background: "rgba(239,68,68,0.06)",
+              border: "1px solid rgba(239,68,68,0.2)",
+              borderRadius: "12px",
+              marginBottom: "16px",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+              }}
+            >
+              <AlertCircle size={16} color="#ef4444" />
+              <span
+                style={{
+                  fontSize: "13px",
+                  color: "#dc2626",
+                  fontWeight: 500,
+                }}
+              >
+                Failed to load jobs. Please check your connection and try again.
+              </span>
+            </div>
+            <button
+              onClick={fetchJobs}
+              style={{
+                padding: "6px 14px",
+                background: "linear-gradient(135deg,#7C3AED,#5b21b6)",
+                border: "none",
+                borderRadius: "8px",
+                fontSize: "12px",
+                fontWeight: 700,
+                color: "#fff",
+                cursor: "pointer",
+                flexShrink: 0,
+              }}
+            >
+              Retry
+            </button>
+          </div>
+        )}
+        {/* ── Status Change Error Toast ── */}
+        {statusError && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "12px",
+              padding: "13px 18px",
+              background: "rgba(239,68,68,0.06)",
+              border: "1px solid rgba(239,68,68,0.2)",
+              borderRadius: "12px",
+              marginBottom: "16px",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+              }}
+            >
+              <AlertCircle size={16} color="#ef4444" />
+              <span
+                style={{
+                  fontSize: "13px",
+                  color: "#dc2626",
+                  fontWeight: 500,
+                }}
+              >
+                {statusError}
+              </span>
+            </div>
+            <button
+              onClick={() => setStatusError(null)}
+              style={{
+                padding: "6px 14px",
+                background: "transparent",
+                border: "1px solid rgba(239,68,68,0.3)",
+                borderRadius: "8px",
+                fontSize: "12px",
+                fontWeight: 700,
+                color: "#dc2626",
+                cursor: "pointer",
+                flexShrink: 0,
+              }}
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+
+        {/* ── Copy Failed Banner ── */}
+        {copyFailed && failedUrl && (
+          <div
+            style={{
+              padding: "13px 18px",
+              background: "rgba(245,158,11,0.06)",
+              border: "1px solid rgba(245,158,11,0.25)",
+              borderRadius: "12px",
+              marginBottom: "16px",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                marginBottom: "8px",
+              }}
+            >
+              <AlertCircle size={14} color="#d97706" />
+              <span
+                style={{
+                  fontSize: "13px",
+                  color: "#d97706",
+                  fontWeight: 600,
+                }}
+              >
+                Could not copy automatically — copy the link below:
+              </span>
+            </div>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                padding: "8px 12px",
+                background: "#fff",
+                border: "1px solid #e2e8f0",
+                borderRadius: "8px",
+              }}
+            >
+              <span
+                style={{
+                  flex: 1,
+                  fontSize: "12px",
+                  color: "#374151",
+                  fontFamily: "monospace",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {failedUrl}
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* ── Job list ── */}
         <div className="jobs-list reveal r4">
@@ -642,6 +757,11 @@ export default function JobsPage() {
                           <CheckCircle2 size={13} />
                           <span>Copied!</span>
                         </>
+                      ) : copyFailed === job.id ? (
+                        <>
+                          <AlertCircle size={13} color="#ef4444" />
+                          <span style={{ color: "#ef4444" }}>Failed</span>
+                        </>
                       ) : (
                         <>
                           <Copy size={13} />
@@ -674,6 +794,7 @@ export default function JobsPage() {
                       {openMenu === job.id && (
                         <div
                           className="dropdown-menu"
+                          ref={menuRef}
                           onClick={(e) => e.stopPropagation()}
                         >
                           <Link
@@ -697,36 +818,68 @@ export default function JobsPage() {
                             <Copy size={14} /> Copy Apply Link
                           </div>
                           <div className="drop-divider" />
-                          {job.status !== "active" && (
+                          {/* Show spinner row when this job is updating */}
+                          {updatingJobId === job.id ? (
                             <div
                               className="drop-item"
-                              onClick={() =>
-                                handleStatusChange(job.id, "active")
-                              }
+                              style={{
+                                opacity: 0.6,
+                                cursor: "not-allowed",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "8px",
+                              }}
                             >
-                              <CheckCircle2 size={14} color="#22c55e" /> Set
-                              Active
+                              <svg
+                                width="14"
+                                height="14"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                style={{
+                                  animation: "spin 0.7s linear infinite",
+                                }}
+                              >
+                                <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                              </svg>
+                              Updating...
                             </div>
-                          )}
-                          {job.status !== "draft" && (
-                            <div
-                              className="drop-item"
-                              onClick={() =>
-                                handleStatusChange(job.id, "draft")
-                              }
-                            >
-                              <Clock size={14} color="#f59e0b" /> Move to Draft
-                            </div>
-                          )}
-                          {job.status !== "closed" && (
-                            <div
-                              className="drop-item danger"
-                              onClick={() =>
-                                handleStatusChange(job.id, "closed")
-                              }
-                            >
-                              <XCircle size={14} /> Close Job
-                            </div>
+                          ) : (
+                            <>
+                              {job.status !== "active" && (
+                                <div
+                                  className="drop-item"
+                                  onClick={() =>
+                                    handleStatusChange(job.id, "active")
+                                  }
+                                >
+                                  <CheckCircle2 size={14} color="#22c55e" /> Set
+                                  Active
+                                </div>
+                              )}
+                              {job.status !== "draft" && (
+                                <div
+                                  className="drop-item"
+                                  onClick={() =>
+                                    handleStatusChange(job.id, "draft")
+                                  }
+                                >
+                                  <Clock size={14} color="#f59e0b" /> Move to
+                                  Draft
+                                </div>
+                              )}
+                              {job.status !== "closed" && (
+                                <div
+                                  className="drop-item danger"
+                                  onClick={() =>
+                                    handleStatusChange(job.id, "closed")
+                                  }
+                                >
+                                  <XCircle size={14} /> Close Job
+                                </div>
+                              )}
+                            </>
                           )}
                         </div>
                       )}

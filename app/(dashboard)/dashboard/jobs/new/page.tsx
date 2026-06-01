@@ -21,7 +21,7 @@ import {
   Users,
   Target,
 } from "lucide-react";
-
+import "../../../../Style/newjobs.css";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface JobForm {
@@ -166,6 +166,7 @@ export default function NewJobPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const skillRef = useRef<HTMLInputElement>(null);
+  const isSubmitting = useRef(false);
 
   // ── Field helpers ──────────────────────────────────────────────────────────
 
@@ -194,7 +195,30 @@ export default function NewJobPage() {
       if (!form.title.trim()) e.title = "Job title is required";
       if (!form.department) e.department = "Department is required";
       if (!form.location) e.location = "Location is required";
+
+      const min = parseInt(form.salary_min);
+      const max = parseInt(form.salary_max);
+
+      if (form.salary_min && isNaN(min)) {
+        e.salary_min = "Min salary must be a valid number";
+      }
+      if (form.salary_max && isNaN(max)) {
+        e.salary_max = "Max salary must be a valid number";
+      }
+      if (form.salary_min && form.salary_max && !isNaN(min) && !isNaN(max)) {
+        if (min <= 0) {
+          e.salary_min = "Min salary must be greater than zero";
+        } else if (max <= 0) {
+          e.salary_max = "Max salary must be greater than zero";
+        } else if (min >= max) {
+          e.salary_max = "Max salary must be greater than min salary";
+        }
+      }
+      if (form.salary_max && !form.salary_min) {
+        e.salary_min = "Please enter a min salary or remove the max";
+      }
     }
+
     if (s === 2) {
       if (!form.description.trim())
         e.description = "Job description is required (min 100 chars)";
@@ -210,13 +234,54 @@ export default function NewJobPage() {
   };
 
   const nextStep = () => {
+    if (skillInput.trim()) {
+      addSkill(skillInput.trim());
+      setSkillInput("");
+    }
     if (validate(step)) setStep((s) => s + 1);
   };
-  const prevStep = () => setStep((s) => s - 1);
+  const prevStep = () => {
+    if (skillInput.trim()) {
+      addSkill(skillInput.trim());
+      setSkillInput("");
+    }
+    setStep((s) => s - 1);
+  };
 
   // ── Submit ─────────────────────────────────────────────────────────────────
+  // ── Sanitize helper — strips HTML tags from plain text fields ──
+  const stripHtml = (str: string): string => str.replace(/<[^>]*>/g, "").trim();
 
   const handleSubmit = async (status: "active" | "draft") => {
+    // Synchronous lock — blocks double-click before React re-renders
+    if (isSubmitting.current) return;
+    isSubmitting.current = true;
+    if (skillInput.trim()) {
+      addSkill(skillInput.trim());
+      setSkillInput("");
+    }
+
+    const step1Valid = validate(1);
+    const step2Valid = validate(2);
+    const step3Valid = validate(3);
+
+    if (!step1Valid || !step2Valid || !step3Valid) {
+      isSubmitting.current = false;
+      if (!step1Valid) {
+        setStep(1);
+        return;
+      }
+      if (!step2Valid) {
+        setStep(2);
+        return;
+      }
+      if (!step3Valid) {
+        setStep(3);
+        return;
+      }
+      return;
+    }
+
     setSubmitting(true);
     setSubmitError("");
     try {
@@ -224,22 +289,21 @@ export default function NewJobPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: form.title.trim(),
-          department: form.department,
-          location: form.location,
+          title: stripHtml(form.title),
+          department: stripHtml(form.department),
+          location: stripHtml(form.location),
           employment_type: form.employment_type,
           experience_level: form.experience_level,
           salary_min: form.salary_min ? parseInt(form.salary_min) : null,
           salary_max: form.salary_max ? parseInt(form.salary_max) : null,
           salary_currency: form.salary_currency,
-          description: form.description.trim(),
-          requirements: form.requirements.trim(),
-          responsibilities: form.responsibilities.trim(),
-          skills: form.skills,
+          description: stripHtml(form.description),
+          requirements: stripHtml(form.requirements),
+          responsibilities: stripHtml(form.responsibilities),
+          skills: form.skills.map(stripHtml),
           status,
         }),
       });
-
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Failed to create job");
 
@@ -249,6 +313,7 @@ export default function NewJobPage() {
         err instanceof Error ? err.message : "Failed to create job",
       );
       setSubmitting(false);
+      isSubmitting.current = false;
     }
   };
 
@@ -256,283 +321,6 @@ export default function NewJobPage() {
 
   return (
     <>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-        * { box-sizing:border-box; }
-
-        .new-job-page {
-          min-height:100%; background:#f8fafc;
-          padding:28px 32px 60px;
-          font-family:'Plus Jakarta Sans',sans-serif;
-        }
-
-        @keyframes fadeUp {
-          from { opacity:0; transform:translateY(14px); }
-          to   { opacity:1; transform:translateY(0); }
-        }
-        .reveal { animation:fadeUp .38s cubic-bezier(.22,1,.36,1) both; }
-
-        /* ── Back + title ── */
-        .back-link {
-          display:inline-flex; align-items:center; gap:7px;
-          font-size:13px; font-weight:600; color:#64748b;
-          text-decoration:none; margin-bottom:20px;
-          transition:color .18s;
-        }
-        .back-link:hover { color:#7C3AED; }
-        .page-title { font-size:22px; font-weight:800; color:#0f172a; letter-spacing:-.4px; }
-        .page-sub   { font-size:13px; color:#64748b; margin-top:3px; font-weight:500; margin-bottom:28px; }
-
-        /* ── Stepper ── */
-        .stepper {
-          display:flex; align-items:center; gap:0;
-          margin-bottom:32px; background:#fff;
-          border:1px solid #e2e8f0; border-radius:14px; padding:6px;
-        }
-        .step-item {
-          flex:1; display:flex; align-items:center; justify-content:center;
-          gap:8px; padding:10px 8px; border-radius:10px;
-          font-size:12px; font-weight:600; color:#94a3b8;
-          transition:background .2s, color .2s; position:relative;
-        }
-        .step-item.done    { color:#22c55e; }
-        .step-item.active  { background:rgba(124,58,237,.08); color:#7C3AED; }
-        .step-num {
-          width:22px; height:22px; border-radius:50%;
-          display:flex; align-items:center; justify-content:center;
-          font-size:11px; font-weight:700; flex-shrink:0;
-          background:#f1f5f9; color:#94a3b8;
-        }
-        .step-item.active .step-num  { background:#7C3AED; color:#fff; }
-        .step-item.done   .step-num  { background:#22c55e; color:#fff; }
-        .step-connector {
-          width:1px; height:24px; background:#e2e8f0; flex-shrink:0;
-        }
-        @media (max-width:600px) {
-          .step-label { display:none; }
-          .step-item  { flex:0 0 44px; padding:10px 4px; }
-        }
-
-        /* ── Layout ── */
-        .form-layout {
-          display:grid; grid-template-columns:1fr 300px; gap:20px; align-items:start;
-        }
-        @media (max-width:900px) {
-          .form-layout { grid-template-columns:1fr; }
-          .sidebar-tips { order:99; }
-        }
-
-        /* ── Card ── */
-        .form-card {
-          background:#fff; border:1px solid #e2e8f0; border-radius:16px; overflow:hidden;
-        }
-        .card-head {
-          padding:20px 24px 16px; border-bottom:1px solid #f1f5f9;
-          display:flex; align-items:center; gap:12px;
-        }
-        .card-head-icon {
-          width:38px; height:38px; border-radius:10px;
-          background:rgba(124,58,237,.1);
-          display:flex; align-items:center; justify-content:center; flex-shrink:0;
-        }
-        .card-head-title { font-size:15px; font-weight:700; color:#0f172a; }
-        .card-head-sub   { font-size:12px; color:#94a3b8; margin-top:2px; }
-        .card-body { padding:24px; display:flex; flex-direction:column; gap:20px; }
-
-        /* ── Form fields ── */
-        .field { display:flex; flex-direction:column; gap:6px; }
-        .field-row { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
-        .field-row-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; }
-
-        label {
-          font-size:12px; font-weight:700; color:#374151;
-          text-transform:uppercase; letter-spacing:.04em;
-        }
-        .required { color:#ef4444; margin-left:2px; }
-
-        .inp, .sel, .textarea {
-          width:100%; padding:10px 14px;
-          border:1.5px solid #e2e8f0; border-radius:10px;
-          font-size:13px; font-family:'Plus Jakarta Sans',sans-serif;
-          color:#0f172a; background:#fff; outline:none;
-          transition:border-color .2s, box-shadow .2s;
-        }
-        .inp::placeholder, .textarea::placeholder { color:#94a3b8; }
-        .inp:focus, .sel:focus, .textarea:focus {
-          border-color:#7C3AED; box-shadow:0 0 0 3px rgba(124,58,237,.08);
-        }
-        .inp.error, .sel.error, .textarea.error { border-color:#ef4444; }
-        .textarea { resize:vertical; min-height:130px; line-height:1.6; }
-
-        .sel-wrap { position:relative; }
-        .sel { appearance:none; padding-right:34px; cursor:pointer; }
-        .sel-arrow {
-          position:absolute; right:12px; top:50%; transform:translateY(-50%);
-          pointer-events:none; color:#94a3b8;
-        }
-
-        .field-error { font-size:11px; color:#ef4444; font-weight:500; display:flex; align-items:center; gap:4px; }
-        .field-hint  { font-size:11px; color:#94a3b8; }
-        .char-count  { font-size:11px; color:#94a3b8; text-align:right; }
-
-        /* ── Salary row ── */
-        .salary-prefix {
-          position:absolute; left:12px; top:50%; transform:translateY(-50%);
-          font-size:12px; font-weight:600; color:#64748b; pointer-events:none;
-        }
-        .inp.has-prefix { padding-left:42px; }
-
-        /* ── Skills ── */
-        .skills-box {
-          border:1.5px solid #e2e8f0; border-radius:10px; padding:10px 12px;
-          display:flex; flex-wrap:wrap; gap:7px; min-height:48px;
-          cursor:text; transition:border-color .2s, box-shadow .2s;
-        }
-        .skills-box:focus-within {
-          border-color:#7C3AED; box-shadow:0 0 0 3px rgba(124,58,237,.08);
-        }
-        .skill-tag {
-          display:inline-flex; align-items:center; gap:5px;
-          background:rgba(124,58,237,.1); color:#7C3AED;
-          font-size:12px; font-weight:600; padding:4px 10px; border-radius:20px;
-        }
-        .skill-remove {
-          background:none; border:none; cursor:pointer; padding:0;
-          color:#a78bfa; display:flex; align-items:center;
-          transition:color .15s;
-        }
-        .skill-remove:hover { color:#7C3AED; }
-        .skill-inp {
-          border:none; outline:none; font-size:13px;
-          font-family:'Plus Jakarta Sans',sans-serif; color:#0f172a;
-          background:transparent; min-width:80px; flex:1;
-        }
-        .skill-inp::placeholder { color:#94a3b8; }
-
-        .suggested-skills { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
-        .sug-btn {
-          padding:4px 10px; border-radius:20px; border:1.5px solid #e2e8f0;
-          background:#fff; font-size:11px; font-weight:600; color:#64748b;
-          cursor:pointer; transition:all .15s;
-          font-family:'Plus Jakarta Sans',sans-serif;
-        }
-        .sug-btn:hover { border-color:#7C3AED; color:#7C3AED; background:rgba(124,58,237,.05); }
-        .sug-btn.added { border-color:#22c55e; color:#16a34a; background:rgba(34,197,94,.07); }
-
-        /* ── Toggle chips (emp type, exp level) ── */
-        .toggle-chips { display:flex; flex-wrap:wrap; gap:8px; }
-        .t-chip {
-          padding:8px 14px; border-radius:9px; border:1.5px solid #e2e8f0;
-          background:#fff; font-size:12px; font-weight:600; color:#64748b;
-          cursor:pointer; transition:all .18s;
-          font-family:'Plus Jakarta Sans',sans-serif;
-        }
-        .t-chip:hover  { border-color:#c4b5fd; color:#7C3AED; }
-        .t-chip.active { border-color:#7C3AED; background:rgba(124,58,237,.08); color:#7C3AED; }
-
-        /* ── Status toggle ── */
-        .status-toggle {
-          display:grid; grid-template-columns:1fr 1fr; gap:10px;
-        }
-        .status-opt {
-          padding:14px 16px; border-radius:12px; border:2px solid #e2e8f0;
-          background:#fff; cursor:pointer; transition:all .18s; text-align:left;
-        }
-        .status-opt:hover { border-color:#c4b5fd; }
-        .status-opt.active { border-color:#7C3AED; background:rgba(124,58,237,.05); }
-        .status-opt-icon {
-          width:32px; height:32px; border-radius:9px; margin-bottom:8px;
-          display:flex; align-items:center; justify-content:center;
-        }
-        .status-opt-title { font-size:13px; font-weight:700; color:#0f172a; }
-        .status-opt-sub   { font-size:11px; color:#94a3b8; margin-top:2px; }
-
-        /* ── Review card ── */
-        .review-field {
-          padding:12px 0; border-bottom:1px solid #f8fafc;
-          display:flex; gap:12px;
-        }
-        .review-field:last-child { border-bottom:none; }
-        .review-label { font-size:11px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.05em; min-width:120px; }
-        .review-val   { font-size:13px; color:#0f172a; font-weight:500; }
-
-        /* ── Nav buttons ── */
-        .form-nav {
-          display:flex; justify-content:space-between; align-items:center;
-          padding:16px 24px; border-top:1px solid #f1f5f9; gap:12px;
-        }
-        .btn-ghost {
-          display:flex; align-items:center; gap:7px;
-          padding:9px 18px; border-radius:10px; border:1.5px solid #e2e8f0;
-          background:#fff; font-size:13px; font-weight:600; color:#374151;
-          cursor:pointer; transition:all .18s; font-family:'Plus Jakarta Sans',sans-serif;
-        }
-        .btn-ghost:hover { border-color:#7C3AED; color:#7C3AED; }
-        .btn-primary {
-          display:flex; align-items:center; gap:7px;
-          padding:9px 20px; border-radius:10px;
-          background:linear-gradient(135deg,#7C3AED,#5b21b6);
-          border:none; font-size:13px; font-weight:700; color:#fff;
-          cursor:pointer; box-shadow:0 4px 12px rgba(124,58,237,.28);
-          transition:transform .18s, box-shadow .18s;
-          font-family:'Plus Jakarta Sans',sans-serif;
-        }
-        .btn-primary:hover:not(:disabled) { transform:translateY(-1px); box-shadow:0 6px 18px rgba(124,58,237,.36); }
-        .btn-primary:disabled { opacity:.6; cursor:not-allowed; }
-        .btn-draft {
-          display:flex; align-items:center; gap:7px;
-          padding:9px 16px; border-radius:10px; border:1.5px solid #e2e8f0;
-          background:#fff; font-size:13px; font-weight:600; color:#64748b;
-          cursor:pointer; transition:all .18s; font-family:'Plus Jakarta Sans',sans-serif;
-        }
-        .btn-draft:hover { border-color:#94a3b8; color:#374151; }
-
-        /* ── Error banner ── */
-        .error-banner {
-          display:flex; align-items:center; gap:10px;
-          padding:12px 16px; background:rgba(239,68,68,.08);
-          border:1px solid rgba(239,68,68,.2); border-radius:10px;
-          font-size:13px; color:#ef4444; font-weight:500;
-          margin:0 24px 16px;
-        }
-
-        /* ── Sidebar tips ── */
-        .sidebar-tips { display:flex; flex-direction:column; gap:14px; }
-        .tip-card {
-          background:#fff; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden;
-        }
-        .tip-card-head {
-          padding:14px 16px 10px; border-bottom:1px solid #f1f5f9;
-          font-size:12px; font-weight:700; color:#0f172a;
-          display:flex; align-items:center; gap:7px;
-        }
-        .tip-card-body { padding:14px 16px; display:flex; flex-direction:column; gap:10px; }
-        .tip-item { display:flex; align-items:flex-start; gap:8px; }
-        .tip-dot  {
-          width:6px; height:6px; border-radius:50%; background:#7C3AED;
-          flex-shrink:0; margin-top:5px;
-        }
-        .tip-text { font-size:12px; color:#64748b; line-height:1.5; }
-
-        .ai-tip-sidebar {
-          background:linear-gradient(135deg,#0f172a,#1e1b4b);
-          border-radius:14px; padding:18px; position:relative; overflow:hidden;
-        }
-        .ai-glow {
-          position:absolute; width:100px; height:100px; border-radius:50%;
-          background:rgba(124,58,237,.3); filter:blur(35px);
-          top:-20px; right:-20px; pointer-events:none;
-        }
-        .ai-tip-title { font-size:13px; font-weight:700; color:#f1f5f9; margin-bottom:6px; }
-        .ai-tip-body  { font-size:12px; color:#94a3b8; line-height:1.55; }
-
-        @media (max-width:640px) {
-          .new-job-page { padding:20px 16px 48px; }
-          .field-row, .field-row-3 { grid-template-columns:1fr; }
-          .form-nav { flex-wrap:wrap; }
-        }
-      `}</style>
-
       <div className="new-job-page">
         {/* Back */}
         <Link href="/dashboard/jobs" className="back-link reveal">
@@ -713,6 +501,24 @@ export default function NewJobPage() {
                           type="number"
                         />
                       </div>
+                    </div>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: "12px",
+                      }}
+                    >
+                      {errors.salary_min && (
+                        <span className="field-error">
+                          <AlertCircle size={12} /> {errors.salary_min}
+                        </span>
+                      )}
+                      {errors.salary_max && (
+                        <span className="field-error">
+                          <AlertCircle size={12} /> {errors.salary_max}
+                        </span>
+                      )}
                     </div>
                     <span className="field-hint">
                       Showing salary increases applications by 40% on average
@@ -1001,8 +807,8 @@ export default function NewJobPage() {
                       label: "Status",
                       val:
                         form.status === "active"
-                          ? "Publish Now"
-                          : "Save as Draft",
+                          ? "✓ Will publish immediately"
+                          : "✓ Will save as draft",
                     },
                     {
                       label: "Skills",
@@ -1074,15 +880,22 @@ export default function NewJobPage() {
                 ) : (
                   <button
                     className="btn-primary"
-                    onClick={() => handleSubmit("active")}
+                    onClick={() => handleSubmit(form.status)}
                     disabled={submitting}
                     type="button"
                   >
                     {submitting ? (
-                      "Publishing..."
+                      form.status === "draft" ? (
+                        "Saving..."
+                      ) : (
+                        "Publishing..."
+                      )
                     ) : (
                       <>
-                        <Zap size={14} /> Publish Job
+                        <Zap size={14} />
+                        {form.status === "draft"
+                          ? "Save as Draft"
+                          : "Publish Job"}
                       </>
                     )}
                   </button>

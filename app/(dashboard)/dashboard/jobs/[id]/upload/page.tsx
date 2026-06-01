@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+
 import {
   ArrowLeft,
   Upload,
@@ -82,7 +82,6 @@ function validateFile(file: File): string | null {
 
 export default function UploadCVsPage() {
   const { id } = useParams<{ id: string }>();
-  const supabase = createSupabaseBrowserClient();
 
   const [job, setJob] = useState<Job | null>(null);
   const [files, setFiles] = useState<FileItem[]>([]);
@@ -187,7 +186,22 @@ export default function UploadCVsPage() {
 
   const handleUpload = async () => {
     const validFiles = files.filter((f) => f.status === "queued");
-    if (!validFiles.length || !companyId || !job) return;
+
+    // Debug — remove after fixing
+    if (!validFiles.length) {
+      setGlobalError("No valid files selected.");
+      return;
+    }
+    if (!job) {
+      setGlobalError("Job not loaded yet. Refresh the page.");
+      return;
+    }
+    if (!companyId) {
+      setGlobalError(
+        "Company ID missing — API not returning companyId. Check api/jobs/[id]/route.ts",
+      );
+      return;
+    }
 
     // Quota check
     if (cvQuota && cvQuota.used + validFiles.length > cvQuota.limit) {
@@ -212,51 +226,44 @@ export default function UploadCVsPage() {
       );
 
       try {
-        // 1. Upload file to Supabase Storage
-        const ext = item.file.name.split(".").pop();
-        const filePath = `${companyId}/${job.id}/${generateId()}.${ext}`;
+        // Convert file to base64 — send to API route (uses admin client)
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () =>
+            resolve((reader.result as string).split(",")[1]);
+          reader.onerror = () => reject(new Error("File read failed"));
+          reader.readAsDataURL(item.file);
+        });
 
-        const { error: storageErr } = await supabase.storage
-          .from("cvs")
-          .upload(filePath, item.file, { cacheControl: "3600", upsert: false });
-
-        if (storageErr) throw new Error(storageErr.message);
-
-        // Progress: 50%
+        // Progress: 30%
         setFiles((prev) =>
-          prev.map((f) => (f.id === item.id ? { ...f, progress: 50 } : f)),
+          prev.map((f) => (f.id === item.id ? { ...f, progress: 30 } : f)),
         );
 
-        // 2. Get public URL
-        const { data: urlData } = supabase.storage
-          .from("cvs")
-          .getPublicUrl(filePath);
-
-        // 3. Insert candidate record
-        // 3. Insert candidate record into cv_uploads (correct table)
-        const { data: candidate, error: dbErr } = await supabase
-          .from("cv_uploads")
-          .insert({
-            job_id: job.id,
-            company_id: companyId,
-            candidate_name: item.file.name.replace(/\.(pdf|docx)$/i, ""),
-            candidate_email: "",
-            cv_url: urlData.publicUrl,
-            file_path: filePath,
+        // Upload via API route (admin client bypasses RLS)
+        const uploadRes = await fetch(`/api/jobs/${job.id}/upload`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            file_base64: base64,
             original_filename: item.file.name,
+            file_type: item.file.type,
             file_size_kb: Math.round(item.file.size / 1024),
-            file_type: item.file.name.toLowerCase().endsWith(".pdf")
-              ? "pdf"
-              : "docx",
-            status: "new",
-            screening_status: "pending",
-            source: "manual",
-          })
-          .select("id")
-          .single();
+          }),
+        });
 
-        if (dbErr) throw new Error(dbErr.message);
+        if (!uploadRes.ok) {
+          const errData = await uploadRes.json();
+          throw new Error(errData.error ?? "Upload failed");
+        }
 
+        // Progress: 80%
+        setFiles((prev) =>
+          prev.map((f) => (f.id === item.id ? { ...f, progress: 80 } : f)),
+        );
+
+        const { cvId } = await uploadRes.json();
+        const candidate = { id: cvId };
         // Progress: 100%
         setFiles((prev) =>
           prev.map((f) =>

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import sanitizeHtml from "sanitize-html";
+import { checkJobLimitServer } from "@/lib/limitChecks";
 
 // ── Sanitize config ───────────────────────────────────────────────────────────
 // Plain text fields — strip ALL HTML tags
@@ -173,8 +174,13 @@ export async function POST(req: NextRequest) {
         { status: 403 },
       );
     }
+    // 3. Check job limit before creating
+    const jobLimitCheck = await checkJobLimitServer(profile.company_id);
+    if (!jobLimitCheck.allowed) {
+      return jobLimitCheck.response!;
+    }
 
-    // 3. Parse and validate body
+    // 4. Parse and validate body
     const body = await req.json();
     const {
       title,

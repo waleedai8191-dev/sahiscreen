@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -21,6 +21,14 @@ import {
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 import type { UserProfile, SubscriptionStatus } from "@/lib/supabase/types";
+import {
+  AppNotification,
+  cvSubmittedNotif,
+  milestonNotif,
+  relativeTime,
+  screeningCompleteNotif,
+  usageWarningNotif,
+} from "@/lib/supabase/notifications";
 
 // ── Props ─────────────────────────────────────────────────
 
@@ -47,42 +55,13 @@ const PAGE_TITLES: Record<string, { title: string; description: string }> = {
   },
   "/dashboard/settings": {
     title: "Settings",
-    description: "Company profile and team management",
+    description: "Manage your profile",
   },
   "/dashboard/support": {
     title: "Help & Support",
     description: "Get help with SahiScreen",
   },
 };
-
-// ── Mock notifications ────────────────────────────────────
-
-const MOCK_NOTIFICATIONS = [
-  {
-    id: "1",
-    type: "success" as const,
-    title: "Screening complete",
-    message: "32 CVs screened for Senior Dev role. Shortlist ready.",
-    time: "2 min ago",
-    read: false,
-  },
-  {
-    id: "2",
-    type: "warning" as const,
-    title: "Usage at 80%",
-    message: "You've used 800 of your 1,000 monthly CV screenings.",
-    time: "1 hour ago",
-    read: false,
-  },
-  {
-    id: "3",
-    type: "info" as const,
-    title: "Trial ending soon",
-    message: "Your free trial ends in 3 days. Upgrade to keep screening.",
-    time: "Yesterday",
-    read: true,
-  },
-];
 
 const NOTIF_ICONS = {
   success: { icon: CheckCircle2, color: "#10b981", bg: "#f0fdf4" },
@@ -101,12 +80,14 @@ export default function Topbar({ profile, subscription }: TopbarProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [notifOpen, setNotifOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [notifications, setNotifications] = useState(MOCK_NOTIFICATIONS);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [notifsLoading, setNotifsLoading] = useState(true);
   const [signingOut, setSigningOut] = useState(false);
 
   const searchRef = useRef<HTMLInputElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
   const userRef = useRef<HTMLDivElement>(null);
+  const shownMilestones = useRef<Set<number>>(new Set());
 
   const pageMeta = PAGE_TITLES[pathname] ?? {
     title: "Dashboard",
@@ -122,6 +103,118 @@ export default function Topbar({ profile, subscription }: TopbarProps) {
         .slice(0, 2)
         .toUpperCase()
     : "U";
+
+  const pushNotif = useCallback((notif: AppNotification) => {
+    setNotifications((prev) => {
+      if (prev.some((n) => n.id === notif.id)) return prev;
+      return [notif, ...prev].slice(0, 30);
+    });
+  }, []);
+
+  // Load initial notifications from API
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const res = await fetch("/api/notifications");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled && data.notifications) {
+          const hydrated: AppNotification[] = data.notifications.map(
+            (n: AppNotification) => ({
+              ...n,
+              createdAt: new Date(n.createdAt),
+              time: relativeTime(new Date(n.createdAt)),
+            }),
+          );
+          setNotifications(hydrated);
+        }
+      } finally {
+        if (!cancelled) setNotifsLoading(false);
+      }
+    }
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Realtime subscriptions
+  useEffect(() => {
+    if (!profile) return;
+    const companyId = (profile as any).company_id;
+    if (!companyId) return;
+
+    const cvChannel = supabase
+      .channel(`cv-uploads-${companyId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "cv_uploads",
+          filter: `company_id=eq.${companyId}`,
+        },
+        (payload) => {
+          const row = payload.new as any;
+          if (row.source === "apply_link") pushNotif(cvSubmittedNotif(row));
+        },
+      )
+      .subscribe();
+
+    const screeningChannel = supabase
+      .channel(`screening-results-${companyId}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "screening_results" },
+        async (payload) => {
+          const row = payload.new as any;
+          if (row.status !== "completed") return;
+          const { data: cv } = await supabase
+            .from("cv_uploads")
+            .select("candidate_name, company_id")
+            .eq("id", row.candidate_id)
+            .single();
+          if (!cv || cv.company_id !== companyId) return;
+          pushNotif(screeningCompleteNotif(row, cv.candidate_name));
+        },
+      )
+      .subscribe();
+
+    const subChannel = supabase
+      .channel(`subscription-${companyId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "subscriptions",
+          filter: `company_id=eq.${companyId}`,
+        },
+        (payload) => {
+          const row = payload.new as any;
+          const { cv_count_current: current, cv_limit_monthly: limit } = row;
+          if (!current || !limit) return;
+          const pct = current / limit;
+          if (pct >= 0.8) pushNotif(usageWarningNotif(current, limit));
+          if (
+            current > 0 &&
+            current % 100 === 0 &&
+            !shownMilestones.current.has(current)
+          ) {
+            shownMilestones.current.add(current);
+            pushNotif(milestonNotif(current));
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(cvChannel);
+      supabase.removeChannel(screeningChannel);
+      supabase.removeChannel(subChannel);
+    };
+  }, [profile, supabase, pushNotif]);
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -163,7 +256,7 @@ export default function Topbar({ profile, subscription }: TopbarProps) {
 
   const handleSignOut = async () => {
     setSigningOut(true);
-    // await supabase.auth.signOut();
+    await fetch("/api/auth/signout", { method: "POST" });
     window.location.href = "/login";
   };
 

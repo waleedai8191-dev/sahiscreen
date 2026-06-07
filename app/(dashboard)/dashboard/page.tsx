@@ -52,6 +52,7 @@ const EMPTY_DASHBOARD = {
   totalCandidates: 0,
   totalScreenings: 0,
   activeJobs: 0,
+  activity: [] as ActivityItem[],
   error: false,
 };
 
@@ -121,11 +122,76 @@ async function getDashboardData(companyId: string) {
       screened_count: screenedByJob[j.id] ?? 0,
     }));
 
+    // Recent activity: last 8 events across cv_uploads + screening_results
+    const [recentCvsResult, recentScreeningsResult] = await Promise.all([
+      supabase
+        .from("cv_uploads")
+        .select("id, candidate_name, job_id, source, created_at")
+        .eq("company_id", companyId)
+        .order("created_at", { ascending: false })
+        .limit(5),
+      supabase
+        .from("screening_results")
+        .select(
+          "id, candidate_id, score, recommendation, created_at, cv_uploads!inner(candidate_name, company_id)",
+        )
+        .eq("cv_uploads.company_id", companyId)
+        .eq("status", "completed")
+        .order("created_at", { ascending: false })
+        .limit(5),
+    ]);
+
+    // Build unified activity list
+    const activityItems: ActivityItem[] = [];
+
+    for (const row of recentCvsResult.data ?? []) {
+      activityItems.push({
+        id: `cv-${row.id}`,
+        type: "candidate_added",
+        message: `${row.candidate_name} submitted a CV${row.source === "apply_link" ? " via public link" : ""}`,
+        time: timeAgo(row.created_at),
+        icon: "user",
+      });
+    }
+
+    for (const row of (recentScreeningsResult.data ?? []) as any[]) {
+      const name = row.cv_uploads?.candidate_name ?? "Candidate";
+      const score = row.score ? ` — scored ${row.score}/100` : "";
+      const rec = row.recommendation ? ` (${row.recommendation})` : "";
+      activityItems.push({
+        id: `screening-${row.id}`,
+        type: "screening_done",
+        message: `AI screened ${name}${score}${rec}`,
+        time: timeAgo(row.created_at),
+        icon: "check",
+      });
+    }
+
+    // Sort all by most recent and cap at 8
+    activityItems.sort((a, b) => {
+      const ta =
+        (recentCvsResult.data ?? []).find((r) => `cv-${r.id}` === a.id)
+          ?.created_at ??
+        (recentScreeningsResult.data ?? ([] as any[])).find(
+          (r: any) => `screening-${r.id}` === a.id,
+        )?.created_at ??
+        "";
+      const tb =
+        (recentCvsResult.data ?? []).find((r) => `cv-${r.id}` === b.id)
+          ?.created_at ??
+        (recentScreeningsResult.data ?? ([] as any[])).find(
+          (r: any) => `screening-${r.id}` === b.id,
+        )?.created_at ??
+        "";
+      return tb.localeCompare(ta);
+    });
+
     return {
       jobs,
       totalCandidates: candidatesResult.count ?? 0,
       totalScreenings: screeningsResult.count ?? 0,
       activeJobs: activeJobsResult.count ?? 0,
+      activity: activityItems.slice(0, 8),
       error: false,
     };
   } catch (err) {
@@ -152,55 +218,28 @@ const statusConfig = {
   draft: { label: "Draft", color: "#f59e0b", bg: "rgba(245,158,11,0.1)" },
 };
 
-// ─── Mock activity (replace with real DB query) ───────────────────────────────
-
-const mockActivity: ActivityItem[] = [
-  {
-    id: "1",
-    type: "screening_done",
-    message: "AI screened 42 CVs for Senior Engineer",
-    time: "2 hours ago",
-    icon: "check",
-  },
-  {
-    id: "2",
-    type: "job_created",
-    message: "New job posted: Marketing Manager",
-    time: "5 hours ago",
-    icon: "briefcase",
-  },
-  {
-    id: "3",
-    type: "candidate_added",
-    message: "18 candidates added to Product Designer role",
-    time: "Yesterday",
-    icon: "user",
-  },
-  {
-    id: "4",
-    type: "screening_done",
-    message: "AI screened 67 CVs for Finance Analyst",
-    time: "2 days ago",
-    icon: "check",
-  },
-];
-
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default async function DashboardPage() {
   const session = await requireAuth();
   if (!session) redirect("/login");
 
-  const [profile, subscription] = await Promise.all([
-    getUserProfile(session.id),
-    getSubscriptionStatus(session.id),
-  ]);
-
+  const profile = await getUserProfile(session.id);
   const companyId = profile?.company_id;
 
-  if (!companyId) redirect("/onboarding");
-  const { jobs, totalCandidates, totalScreenings, activeJobs, error } =
-    await getDashboardData(companyId);
+  if (!companyId) redirect("/login");
+
+  const subscription = await getSubscriptionStatus(companyId);
+
+  if (!companyId) redirect("/login");
+  const {
+    jobs,
+    totalCandidates,
+    totalScreenings,
+    activeJobs,
+    activity,
+    error,
+  } = await getDashboardData(companyId);
   {
     error && (
       <div
@@ -232,7 +271,7 @@ export default async function DashboardPage() {
       )
     : 0;
   const isPremium = subscription?.plan === "premium";
-  const isTrial = subscription?.plan === "trial";
+  const isTrial = subscription?.status === "trial";
 
   const hour = new Date().getHours();
   const greeting =
@@ -266,10 +305,6 @@ export default async function DashboardPage() {
                   {subscription.cv_limit - subscription.cvs_used_this_month} CV
                   screenings left · Upgrade to unlock unlimited access
                 </div>
-                <div className="trial-text-sub">
-                  {subscription.cvs_used_this_month} CV screenings left ·
-                  Upgrade to unlock unlimited access
-                </div>
               </div>
             </div>
             <Link href="/dashboard/billing" className="trial-upgrade-btn">
@@ -290,14 +325,14 @@ export default async function DashboardPage() {
                 today.
               </div>
             </div>
-            <div className="header-actions">
+            {/* <div className="header-actions">
               <Link href="/dashboard/candidates" className="btn-outline">
                 <Upload size={14} /> Upload CVs
               </Link>
               <Link href="/dashboard/jobs/new" className="btn-primary">
                 <Plus size={14} /> Post a Job
               </Link>
-            </div>
+            </div> */}
           </div>
         </div>
 
@@ -318,7 +353,7 @@ export default async function DashboardPage() {
           </div>
 
           {/* Total candidates */}
-          <div className="stat-card blue">
+          {/* <div className="stat-card blue">
             <div className="stat-top">
               <div className="stat-icon-wrap blue">
                 <Users size={18} color="#3b82f6" />
@@ -329,10 +364,10 @@ export default async function DashboardPage() {
             </div>
             <div className="stat-value">{totalCandidates}</div>
             <div className="stat-label">Total Candidates</div>
-          </div>
+          </div> */}
 
           {/* Screenings done */}
-          <div className="stat-card green">
+          {/* <div className="stat-card green">
             <div className="stat-top">
               <div className="stat-icon-wrap green">
                 <Target size={18} color="#22c55e" />
@@ -343,7 +378,7 @@ export default async function DashboardPage() {
             </div>
             <div className="stat-value">{totalScreenings}</div>
             <div className="stat-label">AI Screenings Done</div>
-          </div>
+          </div> */}
 
           {/* CV usage */}
           <div className="stat-card amber">
@@ -459,10 +494,10 @@ export default async function DashboardPage() {
                           <span className="job-dept">
                             {job.department || "General"}
                           </span>
-                          <span className="job-dot" />
-                          <span className="job-candidates">
+                          {/* <span className="job-dot" /> */}
+                          {/* <span className="job-candidates">
                             {job.candidates_count ?? 0} candidates
-                          </span>
+                          </span> */}
                           <span className="job-dot" />
                           <span className="job-candidates">
                             {timeAgo(job.created_at)}
@@ -508,7 +543,7 @@ export default async function DashboardPage() {
                   </div>
                   <ChevronRight size={14} color="#cbd5e1" />
                 </Link>
-                <Link href="/dashboard/candidates" className="quick-action">
+                <Link href="/dashboard/screening/new" className="quick-action">
                   <div className="qa-icon blue">
                     <Upload size={16} color="#3b82f6" />
                   </div>
@@ -518,7 +553,8 @@ export default async function DashboardPage() {
                   </div>
                   <ChevronRight size={14} color="#cbd5e1" />
                 </Link>
-                <Link href="/dashboard/candidates" className="quick-action">
+
+                <Link href="/dashboard/screening" className="quick-action">
                   <div className="qa-icon green">
                     <FileText size={16} color="#22c55e" />
                   </div>
@@ -541,7 +577,7 @@ export default async function DashboardPage() {
                   </div>
                 </div>
               </div>
-              {mockActivity.map((item) => (
+              {(activity.length > 0 ? activity : []).map((item) => (
                 <div key={item.id} className="activity-item">
                   <div className={`act-icon ${item.icon}`}>
                     {item.icon === "check" && (

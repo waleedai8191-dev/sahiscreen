@@ -15,9 +15,11 @@ import {
   BarChart3,
   LogOut,
   HelpCircle,
+  FileText,
 } from "lucide-react";
 
 import type { UserProfile, SubscriptionStatus } from "@/lib/supabase/types";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 // ── Nav items ─────────────────────────────────────────────
 
@@ -27,21 +29,21 @@ const NAV_ITEMS = [
     href: "/dashboard",
     icon: LayoutDashboard,
     exact: true,
-    roles: ["admin", "hr", "viewer"],
+    roles: ["admin"],
   },
   {
     label: "Jobs",
     href: "/dashboard/jobs",
     icon: Briefcase,
     exact: false,
-    roles: ["admin", "hr", "viewer"],
+    roles: ["admin"],
   },
   {
-    label: "Candidates",
-    href: "/dashboard/candidates",
-    icon: Users,
+    label: "CV Screening",
+    href: "/dashboard/screening",
+    icon: FileText,
     exact: false,
-    roles: ["admin", "hr", "viewer"],
+    roles: ["admin"],
   },
   {
     label: "Billing",
@@ -49,13 +51,6 @@ const NAV_ITEMS = [
     icon: CreditCard,
     exact: false,
     roles: ["admin"], // hidden for hr/viewer
-  },
-  {
-    label: "Settings",
-    href: "/dashboard/settings",
-    icon: Settings,
-    exact: false,
-    roles: ["admin", "hr"], // hidden for viewer
   },
 ];
 
@@ -116,13 +111,14 @@ export default function Sidebar({ profile, subscription }: SidebarProps) {
 
   const handleSignOut = async () => {
     setSigningOut(true);
-    // await supabase.auth.signOut();
+    const supabase = createSupabaseBrowserClient();
+    await supabase.auth.signOut();
     window.location.href = "/login";
   };
-
   const isActive = (href: string, exact: boolean) => {
     if (exact) return pathname === href;
-    return pathname.startsWith(href);
+    if (href === "/dashboard") return pathname === "/dashboard";
+    return pathname === href || pathname.startsWith(href + "/");
   };
 
   const userRole = (profile?.role ?? "viewer") as "admin" | "hr" | "viewer";

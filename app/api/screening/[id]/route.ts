@@ -1,28 +1,3 @@
-// app/api/screening/[id]/route.ts
-//
-// CONCEPT:
-// Returns the full AI screening result for one candidate.
-// Used by the job detail page to show:
-//   - Overall score (0-100)
-//   - Sub-scores (relevance, achievement, red_flag, context, communication)
-//   - AI summary paragraph
-//   - Strengths list
-//   - Red flags list
-//   - Justification text
-//   - HR decision (shortlisted/rejected/hired)
-//
-// The [id] here is the cv_uploads.id (your candidate ID).
-//
-// TWO OPERATIONS:
-// GET   → fetch screening result for one candidate
-// PATCH → HR updates their decision (shortlist/reject) + optional notes
-//         This is an alternative to /api/candidates/[id] PATCH
-//         Use whichever fits your frontend flow better
-//
-// SECURITY:
-// company_id verified on every request — HR can only see
-// results for their own company's candidates.
-
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";

@@ -271,7 +271,7 @@ export default function Navbar() {
             <Link href="/login" className="btn-login">
               Login
             </Link>
-            <Link href="/register" className="btn-get-started">
+            <Link href="/plans" className="btn-get-started">
               Get Started
             </Link>
           </div>
@@ -307,7 +307,7 @@ export default function Navbar() {
             Login
           </Link>
           <Link
-            href="/register"
+            href="/plans"
             className="btn-get-started"
             onClick={() => setIsMobileMenuOpen(false)}
           >

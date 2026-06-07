@@ -37,7 +37,7 @@ import {
 
 type JobStatus = "active" | "draft" | "closed";
 type ScreeningStatus = "pending" | "processing" | "completed" | "failed";
-type CandidateStatus = "shortlisted" | "rejected" | "reviewing" | "new";
+type CandidateStatus = "shortlisted" | "rejected" | "screening" | "new";
 
 interface Job {
   id: string;
@@ -73,6 +73,8 @@ interface Candidate {
   ai_strengths: string[] | null;
   ai_red_flags: string[] | null;
   ai_justification: string | null;
+  ai_recommendation: string | null;
+  interview_questions: string[] | null;
   university: string | null;
   years_experience: number | null;
   applied_at: string;
@@ -98,7 +100,7 @@ const candidateStatusConfig: Record<
   { label: string; color: string; bg: string }
 > = {
   new: { label: "New", color: "#3b82f6", bg: "rgba(59,130,246,0.1)" },
-  reviewing: {
+  screening: {
     label: "Reviewing",
     color: "#d97706",
     bg: "rgba(245,158,11,0.1)",
@@ -204,6 +206,9 @@ export default function JobDetailPage() {
   const [copiedLink, setCopiedLink] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteAllDialogOpen, setDeleteAllDialogOpen] = useState(false);
+  const [deleteAllConfirmText, setDeleteAllConfirmText] = useState("");
+  const [deletingAll, setDeletingAll] = useState(false);
   const [updatingIds, setUpdatingIds] = useState<Set<string>>(new Set());
   // ── Helper functions — add and remove IDs from the Set cleanly ──
   const lockCandidate = (id: string) =>
@@ -296,10 +301,10 @@ export default function JobDetailPage() {
     setOpenMenu(null);
 
     try {
-      const res = await fetch(`/api/screening/${candidateId}`, {
+      const res = await fetch(`/api/candidates/${candidateId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ decision: status, notes: "" }),
+        body: JSON.stringify({ status, hr_notes: "" }),
       });
 
       if (!res.ok) {
@@ -363,6 +368,38 @@ export default function JobDetailPage() {
     }
   };
 
+  const handleDeleteAll = async () => {
+    if (deleteAllConfirmText !== "DELETE") return;
+    if (candidates.length === 0) return;
+
+    setDeletingAll(true);
+    const previousCandidates = candidates;
+    setCandidates([]);
+    setDeleteAllDialogOpen(false);
+    setDeleteAllConfirmText("");
+
+    try {
+      const results = await Promise.all(
+        previousCandidates.map((c) =>
+          fetch(`/api/candidates/${c.id}`, { method: "DELETE" }),
+        ),
+      );
+      const anyFailed = results.some((r) => !r.ok);
+      if (anyFailed) {
+        setCandidates(previousCandidates);
+        setDeleteError(
+          "Some candidates could not be removed. Please try again.",
+        );
+      }
+    } catch (err) {
+      console.error("handleDeleteAll error:", err);
+      setCandidates(previousCandidates);
+      setDeleteError("Network error — candidates were not removed.");
+    } finally {
+      setDeletingAll(false);
+    }
+  };
+
   const handleExportPDF = () => {
     if (!job) return;
 
@@ -372,81 +409,65 @@ export default function JobDetailPage() {
       format: "a4",
     });
     const pageW = 210;
-    const margin = 20;
+    const margin = 18;
     const contentW = pageW - margin * 2;
 
-    // ── Helper functions ────
-
-    const addPage = () => {
-      doc.addPage();
-      return margin;
-    };
-
     const checkPageBreak = (y: number, needed: number): number => {
-      if (y + needed > 275) return addPage();
+      if (y + needed > 278) {
+        doc.addPage();
+        return margin + 6;
+      }
       return y;
     };
 
-    const drawLine = (y: number, color = "#e2e8f0") => {
-      doc.setDrawColor(color);
+    const drawLine = (y: number, r = 226, g = 232, b = 240): number => {
+      doc.setDrawColor(r, g, b);
       doc.line(margin, y, pageW - margin, y);
       return y + 5;
     };
 
-    // ── Page 1 — Cover / Summary ───
+    // ── Cover header ──
+    doc.setFillColor(124, 58, 237);
+    doc.rect(0, 0, pageW, 44, "F");
 
-    // Purple header bar
-    doc.setFillColor("#7C3AED");
-    doc.rect(0, 0, pageW, 42, "F");
-
-    // Brand name
     doc.setFontSize(22);
-    doc.setTextColor("#ffffff");
     doc.setFont("helvetica", "bold");
+    doc.setTextColor(255, 255, 255);
     doc.text("SahiScreen", margin, 18);
 
-    // Tagline
     doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
-    doc.setTextColor("rgba(255,255,255,0.75)");
-    doc.text("AI-Powered Candidate Screening Report", margin, 26);
-
-    // Date
-    doc.setFontSize(9);
+    doc.setTextColor(210, 200, 240);
+    doc.text("AI-Powered Candidate Screening Report", margin, 27);
+    doc.setTextColor(210, 200, 240);
     doc.text(
-      `Generated: ${new Date().toLocaleDateString("en-PK", {
-        day: "numeric",
-        month: "long",
-        year: "numeric",
-      })}`,
+      `Generated: ${new Date().toLocaleDateString("en-PK", { day: "numeric", month: "long", year: "numeric" })}`,
       pageW - margin,
-      26,
+      27,
       { align: "right" },
     );
 
-    // Job title
+    // ── Job title ──
     doc.setFontSize(18);
     doc.setFont("helvetica", "bold");
-    doc.setTextColor("#0f172a");
-    doc.text(job.title, margin, 58);
+    doc.setTextColor(15, 23, 42);
+    doc.text(job.title, margin, 60);
 
-    // Job meta row
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
-    doc.setTextColor("#64748b");
+    doc.setTextColor(100, 116, 139);
     const metaParts = [
       job.department,
       job.location,
       employmentLabels[job.employment_type] ?? job.employment_type,
     ]
       .filter(Boolean)
-      .join("   ·   ");
-    doc.text(metaParts, margin, 66);
+      .join("   |   ");
+    doc.text(metaParts, margin, 68);
 
-    // Divider
-    let y = drawLine(72);
+    let y = drawLine(74);
 
-    // ── Stats boxes ─────
+    // ── Stats boxes ──
     y += 4;
     const stats = [
       { label: "Total Candidates", value: String(candidates.length) },
@@ -454,173 +475,220 @@ export default function JobDetailPage() {
       { label: "Shortlisted", value: String(shortlisted) },
       { label: "Avg AI Score", value: avgScore ? `${avgScore}/100` : "N/A" },
     ];
-
     const boxW = contentW / 4 - 3;
     stats.forEach((stat, i) => {
       const x = margin + i * (boxW + 4);
-
-      // Box background
-      doc.setFillColor("#f8fafc");
-      doc.setDrawColor("#e2e8f0");
+      doc.setFillColor(248, 250, 252);
+      doc.setDrawColor(226, 232, 240);
       doc.roundedRect(x, y, boxW, 22, 3, 3, "FD");
-
-      // Value
       doc.setFontSize(16);
       doc.setFont("helvetica", "bold");
-      doc.setTextColor("#7C3AED");
+      doc.setTextColor(124, 58, 237);
       doc.text(stat.value, x + boxW / 2, y + 10, { align: "center" });
-
-      // Label
       doc.setFontSize(8);
       doc.setFont("helvetica", "normal");
-      doc.setTextColor("#64748b");
+      doc.setTextColor(100, 116, 139);
       doc.text(stat.label, x + boxW / 2, y + 17, { align: "center" });
     });
 
     y += 30;
     y = drawLine(y);
 
-    // ── Section title ─────
+    // ── Section heading ──
     y += 4;
-    doc.setFontSize(11);
+    doc.setFontSize(12);
     doc.setFont("helvetica", "bold");
-    doc.setTextColor("#0f172a");
+    doc.setTextColor(15, 23, 42);
     doc.text(`Candidate Report  (${filtered.length} shown)`, margin, y);
     y += 10;
 
-    // ── Candidate entries ────
-
+    // ── Candidates ──
     filtered.forEach((c, index) => {
       const sc = scoreColor(c.ai_score);
       const stCfg = candidateStatusConfig[c.status];
 
-      // Estimate height needed for this candidate block
+      // score color as RGB
+      const scoreRGB: [number, number, number] =
+        (c.ai_score ?? 0) >= 80
+          ? [22, 163, 74]
+          : (c.ai_score ?? 0) >= 60
+            ? [217, 119, 6]
+            : (c.ai_score ?? 0) >= 40
+              ? [234, 88, 12]
+              : [239, 68, 68];
+
+      const statusRGB: [number, number, number] =
+        c.status === "shortlisted"
+          ? [22, 163, 74]
+          : c.status === "rejected"
+            ? [239, 68, 68]
+            : c.status === "screening"
+              ? [217, 119, 6]
+              : [59, 130, 246];
+
       const summaryLines = c.ai_summary
-        ? doc.splitTextToSize(c.ai_summary, contentW - 20).length
+        ? doc.splitTextToSize(c.ai_summary, contentW - 10).length
         : 0;
-      const strengthLines = (c.ai_strengths ?? []).length;
-      const flagLines = (c.ai_red_flags ?? []).length;
-      const estimatedHeight =
-        28 + summaryLines * 5 + (strengthLines + flagLines) * 5 + 20;
+      const qCount = (c.interview_questions ?? []).length;
+      const estimated =
+        38 +
+        summaryLines * 5 +
+        ((c.ai_strengths ?? []).length + (c.ai_red_flags ?? []).length) * 5 +
+        qCount * 7 +
+        20;
+      y = checkPageBreak(y, estimated);
 
-      y = checkPageBreak(y, estimatedHeight);
-
-      // ── Candidate header row ───
+      // ── Candidate header bar ──
+      doc.setFillColor(248, 250, 252);
+      doc.setDrawColor(226, 232, 240);
+      doc.roundedRect(margin, y - 4, contentW, 14, 2, 2, "FD");
 
       // Index + name
       doc.setFontSize(12);
       doc.setFont("helvetica", "bold");
-      doc.setTextColor("#0f172a");
-      doc.text(`${index + 1}.  ${c.candidate_name}`, margin, y);
+      doc.setTextColor(15, 23, 42);
+      doc.text(`${index + 1}.  ${c.candidate_name}`, margin + 4, y + 5);
 
-      // Score badge — right aligned
+      // Score (right side)
       if (c.ai_score !== null) {
-        doc.setFillColor(sc.bg.replace("rgba(", "").replace(")", ""));
-        doc.setFontSize(11);
         doc.setFont("helvetica", "bold");
-        doc.setTextColor(sc.color);
-        doc.text(`Score: ${c.ai_score}/100  ${sc.label}`, pageW - margin, y, {
-          align: "right",
-        });
+        doc.setFontSize(11);
+        doc.setTextColor(...scoreRGB);
+        doc.text(
+          `Score: ${c.ai_score}/100  (${sc.label})`,
+          pageW - margin - 4,
+          y + 5,
+          { align: "right" },
+        );
       }
+
+      y += 14;
+
+      // Email + meta row
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(100, 116, 139);
+      const meta = [c.candidate_email, c.candidate_phone]
+        .filter(Boolean)
+        .join("   |   ");
+      if (meta) doc.text(meta, margin + 4, y);
+
+      // Status badge (right side) — text only, no bullet symbol
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(...statusRGB);
+      doc.text(`[ ${stCfg.label} ]`, pageW - margin - 4, y, { align: "right" });
 
       y += 6;
 
-      // Email + meta
-      doc.setFontSize(9);
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor("#64748b");
-      const meta = [
-        c.candidate_email,
-        c.candidate_phone,
-        c.years_experience != null ? `${c.years_experience}y exp` : null,
-        c.university,
-      ]
-        .filter(Boolean)
-        .join("   ·   ");
-      doc.text(meta, margin + 6, y);
+      // AI Recommendation
+      if (c.ai_recommendation) {
+        const recRGB: [number, number, number] =
+          c.ai_recommendation === "shortlist"
+            ? [22, 163, 74]
+            : c.ai_recommendation === "consider"
+              ? [217, 119, 6]
+              : [239, 68, 68];
+        const recLabel =
+          c.ai_recommendation === "shortlist"
+            ? "AI Recommends: Shortlist"
+            : c.ai_recommendation === "consider"
+              ? "AI Recommends: Consider"
+              : "AI Recommends: Reject";
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(...recRGB);
+        doc.text(recLabel, margin + 4, y);
+        y += 6;
+      }
 
-      // Status badge
-      doc.setTextColor(stCfg.color);
-      doc.setFont("helvetica", "bold");
-      doc.text(`● ${stCfg.label}`, pageW - margin, y, { align: "right" });
-
-      y += 8;
-
-      // ── AI Summary ───
+      // ── AI Summary ──
       if (c.ai_summary) {
         doc.setFontSize(9);
         doc.setFont("helvetica", "italic");
-        doc.setTextColor("#374151");
-        const lines = doc.splitTextToSize(c.ai_summary, contentW - 10);
-        doc.text(lines, margin + 6, y);
+        doc.setTextColor(55, 65, 81);
+        const lines = doc.splitTextToSize(c.ai_summary, contentW - 8);
+        doc.text(lines, margin + 4, y);
         y += lines.length * 4.5 + 4;
       }
 
       // ── Strengths ──
-      if (c.ai_strengths && c.ai_strengths.length > 0) {
-        y = checkPageBreak(y, c.ai_strengths.length * 5 + 8);
+      if ((c.ai_strengths ?? []).length > 0) {
+        y = checkPageBreak(y, c.ai_strengths!.length * 5 + 8);
         doc.setFontSize(9);
         doc.setFont("helvetica", "bold");
-        doc.setTextColor("#16a34a");
-        doc.text("Strengths", margin + 6, y);
+        doc.setTextColor(22, 163, 74);
+        doc.text("Strengths:", margin + 4, y);
         y += 5;
-
-        c.ai_strengths.forEach((s) => {
+        c.ai_strengths!.forEach((s) => {
           y = checkPageBreak(y, 6);
           doc.setFont("helvetica", "normal");
-          doc.setTextColor("#374151");
-          const sLines = doc.splitTextToSize(`• ${s}`, contentW - 16);
-          doc.text(sLines, margin + 10, y);
-          y += sLines.length * 4.5;
+          doc.setTextColor(55, 65, 81);
+          const sl = doc.splitTextToSize(`+ ${s}`, contentW - 14);
+          doc.text(sl, margin + 8, y);
+          y += sl.length * 4.5;
         });
         y += 2;
       }
 
-      // ── Red flags ─
-      if (c.ai_red_flags && c.ai_red_flags.length > 0) {
-        y = checkPageBreak(y, c.ai_red_flags.length * 5 + 8);
+      // ── Red Flags ──
+      if ((c.ai_red_flags ?? []).length > 0) {
+        y = checkPageBreak(y, c.ai_red_flags!.length * 5 + 8);
         doc.setFontSize(9);
         doc.setFont("helvetica", "bold");
-        doc.setTextColor("#ef4444");
-        doc.text("Red Flags", margin + 6, y);
+        doc.setTextColor(239, 68, 68);
+        doc.text("Red Flags:", margin + 4, y);
         y += 5;
-
-        c.ai_red_flags.forEach((f) => {
+        c.ai_red_flags!.forEach((f) => {
           y = checkPageBreak(y, 6);
           doc.setFont("helvetica", "normal");
-          doc.setTextColor("#374151");
-          const fLines = doc.splitTextToSize(`• ${f}`, contentW - 16);
-          doc.text(fLines, margin + 10, y);
-          y += fLines.length * 4.5;
+          doc.setTextColor(55, 65, 81);
+          const fl = doc.splitTextToSize(`! ${f}`, contentW - 14);
+          doc.text(fl, margin + 8, y);
+          y += fl.length * 4.5;
         });
         y += 2;
       }
 
-      // Separator between candidates
+      // ── Interview Questions ──
+      if ((c.interview_questions ?? []).length > 0) {
+        y = checkPageBreak(y, c.interview_questions!.length * 7 + 12);
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(37, 99, 235);
+        doc.text("Interview Questions:", margin + 4, y);
+        y += 5;
+        c.interview_questions!.forEach((q, qi) => {
+          y = checkPageBreak(y, 8);
+          doc.setFont("helvetica", "normal");
+          doc.setTextColor(55, 65, 81);
+          const ql = doc.splitTextToSize(`Q${qi + 1}. ${q}`, contentW - 14);
+          doc.text(ql, margin + 8, y);
+          y += ql.length * 4.5 + 2;
+        });
+        y += 2;
+      }
+
+      // Separator
       y += 3;
-      y = drawLine(y, "#f1f5f9");
+      y = drawLine(y, 241, 245, 249);
       y += 4;
     });
 
-    // ── Footer on every page ──────────────────────────────────────────────────
+    // ── Footer on every page ──
     const totalPages = doc.getNumberOfPages();
     for (let p = 1; p <= totalPages; p++) {
       doc.setPage(p);
       doc.setFontSize(8);
-      doc.setTextColor("#94a3b8");
       doc.setFont("helvetica", "normal");
+      doc.setTextColor(148, 163, 184);
       doc.text("Generated by SahiScreen · sahiscreen.com", margin, 290);
       doc.text(`Page ${p} of ${totalPages}`, pageW - margin, 290, {
         align: "right",
       });
     }
 
-    // ── Save ──────────────────────────────────────────────────────────────────
     doc.save(
-      `${job.title.replace(/\s+/g, "-")}-screening-report-${new Date()
-        .toISOString()
-        .slice(0, 10)}.pdf`,
+      `${job.title.replace(/\s+/g, "-")}-screening-report-${new Date().toISOString().slice(0, 10)}.pdf`,
     );
   };
   // ── Filter + sort ──────────────────────────────────────────────────────────
@@ -914,14 +982,14 @@ export default function JobDetailPage() {
         /* ── Candidate card ── */
         .candidate-card {
           background:#fff; border:1px solid #e2e8f0; border-radius:14px;
-          margin-bottom:10px; overflow:hidden;
+          margin-bottom:10px; 
           transition:box-shadow .2s, transform .18s;
         }
         .candidate-card:hover { box-shadow:0 4px 20px rgba(0,0,0,.07); transform:translateY(-1px); }
 
         .candidate-row {
           display:flex; align-items:center; gap:14px;
-          padding:14px 18px; cursor:pointer;
+          padding:14px 18px; cursor:default;
         }
 
         /* avatar */
@@ -1081,6 +1149,19 @@ export default function JobDetailPage() {
         }
 
         /* ── Responsive ── */
+       .delete-all-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px}
+        .delete-all-dialog{background:#fff;border-radius:16px;padding:28px;width:100%;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+        .delete-all-title{font-size:17px;font-weight:800;color:#0f172a;margin-bottom:6px}
+        .delete-all-sub{font-size:13px;color:#64748b;margin-bottom:20px;line-height:1.5}
+        .delete-all-warning{background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2);border-radius:10px;padding:12px 14px;font-size:12px;color:#dc2626;font-weight:500;margin-bottom:16px;line-height:1.5}
+        .delete-all-input{width:100%;padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:13px;font-family:'Plus Jakarta Sans',sans-serif;color:#0f172a;outline:none;margin-bottom:16px;transition:border-color .2s;box-sizing:border-box}
+        .delete-all-input:focus{border-color:#ef4444;box-shadow:0 0 0 3px rgba(239,68,68,.08)}
+        .delete-all-actions{display:flex;gap:10px;justify-content:flex-end}
+        .btn-delete-all{display:inline-flex;align-items:center;gap:6px;padding:9px 18px;border-radius:9px;background:#ef4444;border:none;font-size:13px;font-weight:700;color:#fff;cursor:pointer;transition:all .18s;font-family:'Plus Jakarta Sans',sans-serif}
+        .btn-delete-all:hover:not(:disabled){background:#dc2626}
+        .btn-delete-all:disabled{opacity:.5;cursor:not-allowed}
+        .btn-cancel-all{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:9px;border:1.5px solid #e2e8f0;background:#fff;font-size:13px;font-weight:600;color:#374151;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif}
+
         @media (max-width:900px) {
           .stats-row { grid-template-columns:repeat(2,1fr); }
           .ai-panel-grid { grid-template-columns:1fr; }
@@ -1165,6 +1246,9 @@ export default function JobDetailPage() {
             <button
               className={`btn-outline${copiedLink ? " copied" : ""}`}
               onClick={handleCopyLink}
+              style={{
+                minWidth: 160,
+              }}
             >
               {copiedLink ? (
                 <>
@@ -1278,7 +1362,7 @@ export default function JobDetailPage() {
             >
               <option value="all">All Statuses</option>
               <option value="new">New</option>
-              <option value="reviewing">Reviewing</option>
+              <option value="screening">Reviewing</option>
               <option value="shortlisted">Shortlisted</option>
               <option value="rejected">Rejected</option>
             </select>
@@ -1317,20 +1401,32 @@ export default function JobDetailPage() {
               Auto-updating...
             </div>
           )}
-          <button
-            className="btn-outline"
-            style={{ marginLeft: "auto" }}
-            onClick={handleExportPDF}
-            disabled={candidates.length === 0}
-            title={
-              candidates.length === 0
-                ? "No candidates to export"
-                : "Export PDF report"
-            }
-          >
-            <Download size={13} />
-            Export PDF
-          </button>
+          <div style={{ marginLeft: "auto", display: "flex", gap: 10 }}>
+            {candidates.length > 0 && (
+              <button
+                className="btn-outline"
+                style={{ color: "#ef4444", borderColor: "#fca5a5" }}
+                onClick={() => setDeleteAllDialogOpen(true)}
+                title="Delete all candidates from this job"
+              >
+                <Trash2 size={13} />
+                Delete All
+              </button>
+            )}
+            <button
+              className="btn-outline"
+              onClick={handleExportPDF}
+              disabled={candidates.length === 0}
+              title={
+                candidates.length === 0
+                  ? "No candidates to export"
+                  : "Export PDF report"
+              }
+            >
+              <Download size={13} />
+              Export PDF
+            </button>
+          </div>
         </div>
 
         {/* ── Candidate list ── */}
@@ -1365,9 +1461,6 @@ export default function JobDetailPage() {
                   >
                     <Upload size={13} /> Upload CVs
                   </Link>
-                  <button className="btn-outline" onClick={handleCopyLink}>
-                    <Copy size={13} /> Copy Apply Link
-                  </button>
                 </div>
               )}
             </div>
@@ -1548,15 +1641,7 @@ export default function JobDetailPage() {
                               <ExternalLink size={13} /> CV Unavailable
                             </div>
                           )}
-                          ) : (
-                          <div
-                            className="drop-item"
-                            style={{ opacity: 0.4, cursor: "not-allowed" }}
-                            title="CV file not available"
-                          >
-                            <ExternalLink size={13} /> CV Unavailable
-                          </div>
-                          )
+
                           <div className="drop-divider" />
                           <div
                             className="drop-item"
@@ -1570,7 +1655,7 @@ export default function JobDetailPage() {
                           <div
                             className="drop-item"
                             onClick={() =>
-                              handleStatusChange(candidate.id, "reviewing")
+                              handleStatusChange(candidate.id, "screening")
                             }
                           >
                             <Eye size={13} /> Mark Reviewing
@@ -1670,6 +1755,151 @@ export default function JobDetailPage() {
                         </div>
                       </div>
                     )}
+                    {/* AI Recommendation */}
+                    {candidate.ai_recommendation && (
+                      <div
+                        style={{
+                          marginTop: 14,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 700,
+                            color: "#64748b",
+                            textTransform: "uppercase",
+                            letterSpacing: ".06em",
+                          }}
+                        >
+                          AI Recommends:
+                        </span>
+                        <span
+                          style={{
+                            fontSize: 12,
+                            fontWeight: 700,
+                            padding: "4px 12px",
+                            borderRadius: 20,
+                            background:
+                              candidate.ai_recommendation === "shortlist"
+                                ? "rgba(34,197,94,.1)"
+                                : candidate.ai_recommendation === "consider"
+                                  ? "rgba(245,158,11,.1)"
+                                  : "rgba(239,68,68,.1)",
+                            color:
+                              candidate.ai_recommendation === "shortlist"
+                                ? "#16a34a"
+                                : candidate.ai_recommendation === "consider"
+                                  ? "#d97706"
+                                  : "#ef4444",
+                          }}
+                        >
+                          {candidate.ai_recommendation === "shortlist"
+                            ? "✓ Shortlist"
+                            : candidate.ai_recommendation === "consider"
+                              ? "⚡ Consider"
+                              : "✗ Reject"}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Interview Questions */}
+                    {candidate.interview_questions &&
+                      candidate.interview_questions.length > 0 && (
+                        <div
+                          style={{
+                            marginTop: 14,
+                            background: "rgba(37,99,235,.03)",
+                            border: "1px solid rgba(37,99,235,.12)",
+                            borderRadius: 10,
+                            padding: "14px 16px",
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 700,
+                              color: "#2563eb",
+                              textTransform: "uppercase",
+                              letterSpacing: ".06em",
+                              marginBottom: 12,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                            }}
+                          >
+                            <span>Interview Questions</span>
+                            <button
+                              onClick={() => {
+                                const questions =
+                                  candidate.interview_questions ?? [];
+                                const printWindow = window.open("", "_blank");
+                                if (!printWindow) return;
+                                printWindow.document.write(
+                                  `<html><head><title>Interview Questions — ${candidate.candidate_name}</title><style>body{font-family:Arial,sans-serif;padding:40px;color:#1a1a1a}.num{background:#2563eb;color:#fff;width:26px;height:26px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;margin-right:10px}.q{margin-bottom:20px;display:flex;align-items:flex-start}.footer{margin-top:40px;font-size:11px;color:#999;text-align:center}</style></head><body><h2>Interview Questions — ${candidate.candidate_name}</h2><p>Job: <strong>${job?.title}</strong> | Date: ${new Date().toLocaleDateString("en-PK", { day: "numeric", month: "long", year: "numeric" })}</p><hr/>${questions.map((q, i) => `<div class="q"><span class="num">${i + 1}</span><span>${q}</span></div>`).join("")}<hr/><div class="footer">Generated by SahiScreen AI</div></body></html>`,
+                                );
+                                printWindow.document.close();
+                                printWindow.focus();
+                                setTimeout(() => {
+                                  printWindow.print();
+                                  printWindow.close();
+                                }, 500);
+                              }}
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 5,
+                                padding: "4px 10px",
+                                borderRadius: 7,
+                                background: "rgba(37,99,235,.1)",
+                                color: "#2563eb",
+                                border: "1.5px solid rgba(37,99,235,.2)",
+                                fontSize: 11,
+                                fontWeight: 700,
+                                cursor: "pointer",
+                              }}
+                            >
+                              <Download size={11} /> PDF
+                            </button>
+                          </div>
+                          {candidate.interview_questions.map((q, i) => (
+                            <div
+                              key={i}
+                              style={{
+                                display: "flex",
+                                alignItems: "flex-start",
+                                gap: 10,
+                                fontSize: 12.5,
+                                color: "#374151",
+                                lineHeight: 1.55,
+                                marginBottom: 10,
+                              }}
+                            >
+                              <span
+                                style={{
+                                  width: 22,
+                                  height: 22,
+                                  borderRadius: 6,
+                                  background: "#2563eb",
+                                  color: "#fff",
+                                  fontSize: 11,
+                                  fontWeight: 800,
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  flexShrink: 0,
+                                  marginTop: 1,
+                                }}
+                              >
+                                {i + 1}
+                              </span>
+                              <span>{q}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
 
                     {/* Action buttons */}
                     <div className="ai-actions">
@@ -1755,6 +1985,61 @@ export default function JobDetailPage() {
             );
           })}
         </div>
+        {/* ── Delete All Confirmation Dialog ── */}
+        {deleteAllDialogOpen && (
+          <div
+            className="delete-all-backdrop"
+            onClick={() => {
+              setDeleteAllDialogOpen(false);
+              setDeleteAllConfirmText("");
+            }}
+          >
+            <div
+              className="delete-all-dialog"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="delete-all-title">Delete All Candidates</div>
+              <div className="delete-all-sub">
+                This will permanently remove all{" "}
+                <strong>{candidates.length} candidates</strong> from{" "}
+                <strong>{job?.title}</strong>, including their CV files and AI
+                screening results.
+              </div>
+              <div className="delete-all-warning">
+                ⚠️ All CV files will be removed from storage. Screening results
+                and interview questions will be lost permanently. This cannot be
+                undone.
+              </div>
+              <input
+                className="delete-all-input"
+                placeholder='Type "DELETE" to confirm'
+                value={deleteAllConfirmText}
+                onChange={(e) => setDeleteAllConfirmText(e.target.value)}
+                autoFocus
+              />
+              <div className="delete-all-actions">
+                <button
+                  className="btn-cancel-all"
+                  onClick={() => {
+                    setDeleteAllDialogOpen(false);
+                    setDeleteAllConfirmText("");
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn-delete-all"
+                  onClick={handleDeleteAll}
+                  disabled={deleteAllConfirmText !== "DELETE" || deletingAll}
+                >
+                  <Trash2 size={13} />
+                  {deletingAll ? "Deleting..." : "Delete All Candidates"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ── Delete Error Banner ── */}
         {deleteError && (
           <div

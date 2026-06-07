@@ -22,11 +22,13 @@ export async function setupNewUser({
   email,
   fullName,
   companyName,
+  planTier = "free",
 }: {
   userId: string;
   email: string;
   fullName: string;
   companyName: string;
+  planTier?: string;
 }): Promise<{ companyId: string } | null> {
   const admin = createSupabaseAdminClient();
 
@@ -44,13 +46,17 @@ export async function setupNewUser({
     }
 
     // 2. Create user
-    const { error: userError } = await admin.from("users").insert({
-      id: userId,
-      company_id: company.id,
-      full_name: fullName,
-      email,
-      role: "admin",
-    });
+    // 2. Create or update user (trigger may have already created the row)
+    const { error: userError } = await admin.from("users").upsert(
+      {
+        id: userId,
+        company_id: company.id,
+        full_name: fullName,
+        email,
+        role: "admin",
+      },
+      { onConflict: "id" },
+    );
 
     if (userError) {
       await admin.from("companies").delete().eq("id", company.id);
@@ -64,16 +70,22 @@ export async function setupNewUser({
     const trialEnd = new Date();
     trialEnd.setDate(trialEnd.getDate() + 14);
 
+    const { getPlan, isPaidPlan } = await import("@/lib/plans");
+    const plan = getPlan(planTier);
+    const isPaid = isPaidPlan(plan.tier);
+
     const { error: subError } = await admin.from("subscriptions").insert({
       company_id: company.id,
-      plan_tier: "essential",
-      status: "trial",
-      trial_start: new Date().toISOString(),
-      trial_end: trialEnd.toISOString(),
+      plan_tier: plan.tier,
+      status: isPaid ? "pending_payment" : "active",
+      payment_status: isPaid ? "unpaid" : "unpaid",
+      // plan_selected_at: now,
+      trial_start: null,
+      trial_end: null,
       cv_count_current: 0,
-      cv_limit_monthly: 50,
+      cv_limit_monthly: isPaid ? 0 : plan.cvLimit, // 0 until paid
+      job_limit: isPaid ? 0 : plan.jobLimit, // 0 until paid
     });
-
     if (subError) {
       await admin.from("users").delete().eq("id", userId);
 

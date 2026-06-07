@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { incrementCvCount } from "@/lib/limitChecks";
 
 export async function POST(req: NextRequest) {
   try {
@@ -99,77 +100,159 @@ async function processCV(
   admin: ReturnType<typeof createSupabaseAdminClient>,
 ) {
   try {
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-
     // Step A: Extract CV text (uses your existing /api/extract-cv)
-    // Skip if parsed_text already exists
+    // Step A: Extract CV text directly — no HTTP round-trip
     let cvText = cv.parsed_text ?? "";
 
     if (!cvText) {
-      const extractRes = await fetch(`${appUrl}/api/extract-cv`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filePath: cv.file_path, cvId: cv.id }),
-      });
+      try {
+        const { data: fileData, error: downloadErr } = await admin.storage
+          .from("cvs")
+          .download(cv.file_path);
 
-      if (extractRes.ok) {
-        const extractData = await extractRes.json();
-        cvText = extractData.text ?? "";
+        if (!downloadErr && fileData) {
+          const arrayBuffer = await fileData.arrayBuffer();
+          const buffer = Buffer.from(arrayBuffer);
+          const ext = cv.file_path.split(".").pop()?.toLowerCase();
 
-        // Save extracted text back to cv_uploads
-        await admin
-          .from("cv_uploads")
-          .update({
-            parsed_text: cvText,
-            extraction_status: "completed",
-          })
-          .eq("id", cv.id);
+          if (ext === "pdf") {
+            try {
+              const { extractText } = await import("unpdf");
+              const { text } = await extractText(new Uint8Array(buffer), {
+                mergePages: true,
+              });
+              cvText = text ?? "";
+            } catch (e) {
+              console.error("PDF parse error:", e);
+            }
+          } else if (ext === "docx") {
+            try {
+              const mammoth = await import("mammoth");
+              const result = await mammoth.extractRawText({ buffer });
+              cvText = result.value ?? "";
+            } catch (e) {
+              console.error("DOCX parse error:", e);
+            }
+          }
+
+          cvText = cvText
+            .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "")
+            .replace(/\r\n/g, "\n")
+            .replace(/\n{3,}/g, "\n\n")
+            .trim();
+
+          await admin
+            .from("cv_uploads")
+            .update({
+              parsed_text: cvText,
+              extraction_status: cvText.length > 50 ? "completed" : "failed",
+            })
+            .eq("id", cv.id);
+
+          console.log(`Extracted ${cvText.length} chars from ${cv.file_path}`);
+        }
+      } catch (extractErr) {
+        console.error("Extraction error:", extractErr);
       }
     }
+    // Step B: Call Claude directly
+    const { buildScreeningPrompt, parseAndValidateScreeningResponse } =
+      await import("@/lib/ai/prompts/screening-prompt");
+    const { systemPrompt, userPrompt } = buildScreeningPrompt({
+      jobTitle: job.title,
+      jobDescription: job.description ?? "",
+      requirements: job.requirements ?? "",
+      skills: job.skills ?? [],
+      cvText,
+      candidateName: cv.candidate_name,
+    });
 
-    // Step B: AI scoring (uses your existing /api/screen-cv)
-    const screenRes = await fetch(`${appUrl}/api/screen-cv`, {
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) throw new Error("ANTHROPIC_API_KEY not set");
+
+    const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
       body: JSON.stringify({
-        cvText,
-        cvId: cv.id,
-        jobTitle: job.title,
-        jobDescription: job.description ?? "",
-        requirements: job.requirements ?? "",
-        skills: job.skills ?? [],
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 1500,
+        system: systemPrompt,
+        messages: [{ role: "user", content: userPrompt }],
       }),
     });
 
-    if (!screenRes.ok) {
-      throw new Error(`screen-cv returned ${screenRes.status}`);
+    if (!claudeRes.ok) {
+      const err = await claudeRes.text();
+      throw new Error(`Claude API error ${claudeRes.status}: ${err}`);
     }
 
-    const screenData = await screenRes.json();
+    const claudeData = await claudeRes.json();
+    const rawResponse = claudeData.content?.[0]?.text ?? "";
+    const result = parseAndValidateScreeningResponse(rawResponse);
 
-    // Step C: Save result to screening_results table
-    // Uses upsert — safe to call multiple times
+    if (!result) {
+      throw new Error(`Invalid AI response: ${rawResponse.slice(0, 200)}`);
+    }
+
+    // Step C: Save to screening_results
     await admin.from("screening_results").upsert(
       {
-        candidate_id: cv.id, // cv_uploads.id
-        cv_id: cv.id, // your original column name
+        candidate_id: cv.id,
+        cv_id: cv.id,
         job_id: job.id,
         company_id: cv.company_id,
-        score: screenData.overall_score ?? screenData.score,
-        overall_score: screenData.overall_score,
-        summary: screenData.summary ?? "",
-        strengths: screenData.strengths ?? [],
-        red_flags: screenData.red_flags ?? [],
-        justification: screenData.justification ?? "",
+        score: result.overall_score,
+        overall_score: result.overall_score,
+        relevance_score: result.relevance_score,
+        achievement_score: result.achievement_score,
+        red_flag_score: result.red_flag_score,
+        context_score: result.context_score,
+        communication_score: result.communication_score,
+        summary: result.summary,
+        strengths: result.strengths,
+        red_flags: result.red_flags,
+        justification: result.justification,
+        recommendation: result.recommendation,
         status: "completed",
-        model_used: "claude-sonnet",
+        model_used: "claude-haiku-4-5",
         screened_at: new Date().toISOString(),
       },
-      {
-        onConflict: "candidate_id",
-      },
+      { onConflict: "candidate_id" },
     );
 
+    if (!result) {
+      throw new Error(`Invalid AI response: ${rawResponse.slice(0, 200)}`);
+    }
+
+    // Step C: Save to screening_results
+    await admin.from("screening_results").upsert(
+      {
+        candidate_id: cv.id,
+        cv_id: cv.id,
+        job_id: job.id,
+        company_id: cv.company_id,
+        score: result.overall_score,
+        overall_score: result.overall_score,
+        relevance_score: result.relevance_score,
+        achievement_score: result.achievement_score,
+        red_flag_score: result.red_flag_score,
+        context_score: result.context_score,
+        communication_score: result.communication_score,
+        summary: result.summary,
+        strengths: result.strengths,
+        red_flags: result.red_flags,
+        justification: result.justification,
+        recommendation: result.recommendation,
+        status: "completed",
+        model_used: "claude-haiku-4-5",
+        screened_at: new Date().toISOString(),
+      },
+      { onConflict: "candidate_id" },
+    );
     // Step D: Update cv_uploads screening_status to completed
     await admin
       .from("cv_uploads")
@@ -189,6 +272,7 @@ async function processCV(
         .update({ screened_count: (jobRow.screened_count ?? 0) + 1 })
         .eq("id", job.id);
     }
+    await incrementCvCount(cv.company_id, 1);
   } catch (err) {
     console.error(`screening failed for cv ${cv.id}:`, err);
 

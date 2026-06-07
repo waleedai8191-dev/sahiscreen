@@ -116,7 +116,7 @@ export default function MobileNav({
 
   const handleSignOut = async () => {
     setSigningOut(true);
-    await supabase.auth.signOut();
+    await fetch("/api/auth/signout", { method: "POST" });
     window.location.href = "/login";
   };
 

@@ -19,8 +19,9 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
+  const { id: candidateId } = await params;
   try {
     const supabase = await createSupabaseServerClient();
     const admin = createSupabaseAdminClient();
@@ -66,7 +67,7 @@ export async function GET(
         created_at
       `,
       )
-      .eq("id", params.id)
+      .eq("id", candidateId)
       .eq("company_id", profile.company_id) // ownership check
       .single();
 
@@ -101,7 +102,7 @@ export async function GET(
         model_used
       `,
       )
-      .eq("candidate_id", params.id)
+      .eq("candidate_id", candidateId)
       .single();
 
     return NextResponse.json({ candidate, screening: screening ?? null });
@@ -123,11 +124,92 @@ export async function GET(
 //   status: "shortlisted" | "rejected" | "hired" | "new"
 //   hr_notes?: string   (optional note from HR)
 // }
+// ─── DELETE /api/candidates/[id] ─────────────────────────────────────────────
+// Removes a candidate (cv_upload row) and their screening result.
 
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id: candidateId } = await params;
+  try {
+    const supabase = await createSupabaseServerClient();
+    const admin = createSupabaseAdminClient();
+
+    const {
+      data: { user },
+      error: authErr,
+    } = await supabase.auth.getUser();
+    if (!user || authErr) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { data: profile } = await admin
+      .from("users")
+      .select("company_id, role")
+      .eq("id", user.id)
+      .single();
+
+    if (!profile || !["admin", "hr"].includes(profile.role)) {
+      return NextResponse.json(
+        { error: "Insufficient permissions" },
+        { status: 403 },
+      );
+    }
+
+    // Verify candidate belongs to this company
+    const { data: candidate } = await admin
+      .from("cv_uploads")
+      .select("id, company_id, file_path")
+      .eq("id", candidateId)
+      .eq("company_id", profile.company_id)
+      .single();
+
+    if (!candidate) {
+      return NextResponse.json(
+        { error: "Candidate not found" },
+        { status: 404 },
+      );
+    }
+
+    // Delete screening result first (foreign key)
+    await admin
+      .from("screening_results")
+      .delete()
+      .eq("candidate_id", candidateId);
+
+    // Delete cv_upload row
+    const { error: deleteErr } = await admin
+      .from("cv_uploads")
+      .delete()
+      .eq("id", candidateId);
+
+    if (deleteErr) {
+      return NextResponse.json(
+        { error: "Failed to delete candidate" },
+        { status: 500 },
+      );
+    }
+
+    // Delete file from storage if path exists
+    if (candidate.file_path) {
+      await admin.storage.from("cvs").remove([candidate.file_path]);
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    console.error("DELETE /api/candidates/[id] error:", err);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
+  }
+}
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
+  const { id: candidateId } = await params;
   try {
     const supabase = await createSupabaseServerClient();
     const admin = createSupabaseAdminClient();
@@ -174,7 +256,7 @@ export async function PATCH(
     const { data: candidate } = await admin
       .from("cv_uploads")
       .select("id, company_id")
-      .eq("id", params.id)
+      .eq("id", candidateId)
       .eq("company_id", profile.company_id)
       .single();
 
@@ -189,7 +271,7 @@ export async function PATCH(
     const { data: updated, error: updateErr } = await admin
       .from("cv_uploads")
       .update({ status })
-      .eq("id", params.id)
+      .eq("id", candidateId)
       .select("id, status, candidate_name")
       .single();
 
@@ -210,7 +292,7 @@ export async function PATCH(
         decided_by: user.id,
         decided_at: new Date().toISOString(),
       })
-      .eq("candidate_id", params.id);
+      .eq("candidate_id", candidateId);
 
     return NextResponse.json({
       success: true,

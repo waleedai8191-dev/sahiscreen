@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+
 import {
   Plus,
   Search,
@@ -20,6 +21,7 @@ import {
   Zap,
   TrendingUp,
   AlertCircle,
+  Trash2,
 } from "lucide-react";
 import "../../../Style/jobs.css";
 
@@ -151,6 +153,10 @@ export default function JobsPage() {
   const [copyFailed, setCopyFailed] = useState<string | null>(null);
   const [failedUrl, setFailedUrl] = useState<string>("");
   const [updatingJobId, setUpdatingJobId] = useState<string | null>(null);
+  const [deleteJobDialogOpen, setDeleteJobDialogOpen] = useState(false);
+  const [deleteJobTarget, setDeleteJobTarget] = useState<Job | null>(null);
+  const [deleteJobConfirmText, setDeleteJobConfirmText] = useState("");
+  const [deletingJob, setDeletingJob] = useState(false);
 
   // fetch jobs
   const fetchJobs = useCallback(async () => {
@@ -236,6 +242,41 @@ export default function JobsPage() {
     setOpenMenu(null);
   };
 
+  const handleDeleteJob = async () => {
+    if (!deleteJobTarget || deleteJobConfirmText !== "DELETE") return;
+    setDeletingJob(true);
+
+    const previousJobs = jobs;
+    const previousCounts = counts;
+    const jobToDelete = deleteJobTarget;
+
+    setJobs((prev) => prev.filter((j) => j.id !== jobToDelete.id));
+    setCounts((prev) => ({
+      ...prev,
+      total: Math.max(0, prev.total - 1),
+      [jobToDelete.status]: Math.max(0, prev[jobToDelete.status] - 1),
+    }));
+    setDeleteJobDialogOpen(false);
+    setDeleteJobTarget(null);
+    setDeleteJobConfirmText("");
+
+    try {
+      const res = await fetch(`/api/jobs/${jobToDelete.id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        setJobs(previousJobs);
+        setCounts(previousCounts);
+        setStatusError("Failed to delete job. Please try again.");
+      }
+    } catch {
+      setJobs(previousJobs);
+      setCounts(previousCounts);
+      setStatusError("Network error — job was not deleted.");
+    } finally {
+      setDeletingJob(false);
+    }
+  };
   // handle status change
   const handleStatusChange = async (jobId: string, newStatus: JobStatus) => {
     // Block if this job already has a pending request
@@ -751,6 +792,7 @@ export default function JobsPage() {
                       className={`action-btn${copiedId === job.id ? " copied" : ""}`}
                       onClick={() => handleCopy(job)}
                       title="Copy apply link"
+                      style={{ minWidth: 160 }}
                     >
                       {copiedId === job.id ? (
                         <>
@@ -879,6 +921,17 @@ export default function JobsPage() {
                                   <XCircle size={14} /> Close Job
                                 </div>
                               )}
+                              <div className="drop-divider" />
+                              <div
+                                className="drop-item danger"
+                                onClick={() => {
+                                  setDeleteJobTarget(job);
+                                  setDeleteJobDialogOpen(true);
+                                  setOpenMenu(null);
+                                }}
+                              >
+                                <Trash2 size={14} /> Delete Job
+                              </div>
                             </>
                           )}
                         </div>
@@ -890,6 +943,148 @@ export default function JobsPage() {
             })}
         </div>
       </div>
+
+      {/* ── Delete Job Confirmation Dialog ── */}
+      {deleteJobDialogOpen && deleteJobTarget && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,.5)",
+            zIndex: 200,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+          }}
+          onClick={() => {
+            setDeleteJobDialogOpen(false);
+            setDeleteJobConfirmText("");
+          }}
+        >
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: 16,
+              padding: 28,
+              width: "100%",
+              maxWidth: 420,
+              boxShadow: "0 20px 60px rgba(0,0,0,.2)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                fontSize: 17,
+                fontWeight: 800,
+                color: "#0f172a",
+                marginBottom: 6,
+              }}
+            >
+              Delete Job
+            </div>
+            <div
+              style={{
+                fontSize: 13,
+                color: "#64748b",
+                marginBottom: 20,
+                lineHeight: 1.5,
+              }}
+            >
+              This will permanently delete{" "}
+              <strong>{deleteJobTarget.title}</strong> and all its candidates,
+              CV files, and AI screening results.
+            </div>
+            <div
+              style={{
+                background: "rgba(239,68,68,.06)",
+                border: "1px solid rgba(239,68,68,.2)",
+                borderRadius: 10,
+                padding: "12px 14px",
+                fontSize: 12,
+                color: "#dc2626",
+                fontWeight: 500,
+                marginBottom: 16,
+                lineHeight: 1.5,
+              }}
+            >
+              ⚠️ All CV files and screening results will be permanently lost.
+              This cannot be undone.
+            </div>
+            <input
+              style={{
+                width: "100%",
+                padding: "10px 14px",
+                border: "1.5px solid #e2e8f0",
+                borderRadius: 10,
+                fontSize: 13,
+                fontFamily: "'Plus Jakarta Sans',sans-serif",
+                color: "#0f172a",
+                outline: "none",
+                marginBottom: 16,
+                boxSizing: "border-box",
+              }}
+              placeholder='Type "DELETE" to confirm'
+              value={deleteJobConfirmText}
+              onChange={(e) => setDeleteJobConfirmText(e.target.value)}
+              autoFocus
+            />
+            <div
+              style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}
+            >
+              <button
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "9px 16px",
+                  borderRadius: 9,
+                  border: "1.5px solid #e2e8f0",
+                  background: "#fff",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: "#374151",
+                  cursor: "pointer",
+                  fontFamily: "'Plus Jakarta Sans',sans-serif",
+                }}
+                onClick={() => {
+                  setDeleteJobDialogOpen(false);
+                  setDeleteJobConfirmText("");
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "9px 18px",
+                  borderRadius: 9,
+                  background:
+                    deleteJobConfirmText === "DELETE" && !deletingJob
+                      ? "#ef4444"
+                      : "#fca5a5",
+                  border: "none",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: "#fff",
+                  cursor:
+                    deleteJobConfirmText === "DELETE"
+                      ? "pointer"
+                      : "not-allowed",
+                  fontFamily: "'Plus Jakarta Sans',sans-serif",
+                }}
+                onClick={handleDeleteJob}
+                disabled={deleteJobConfirmText !== "DELETE" || deletingJob}
+              >
+                <Trash2 size={13} />
+                {deletingJob ? "Deleting..." : "Delete Job"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

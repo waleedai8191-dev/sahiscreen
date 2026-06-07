@@ -104,6 +104,7 @@ async function saveScreeningResult(
       red_flags: result.red_flags,
       justification: result.justification,
       recommendation: result.recommendation,
+      interview_questions: result.interview_questions ?? [],
 
       // Meta
       status: "completed",

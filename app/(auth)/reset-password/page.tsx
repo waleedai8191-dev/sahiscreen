@@ -11,11 +11,9 @@ import {
   CheckCircle2,
   ShieldCheck,
 } from "lucide-react";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
-  const supabase = createSupabaseBrowserClient();
 
   const [formData, setFormData] = useState({
     password: "",
@@ -32,17 +30,8 @@ export default function ResetPasswordPage() {
 
   // Verify Supabase session from reset link
   useEffect(() => {
-    const checkSession = async () => {
-      const { data, error } = await supabase.auth.getSession();
-      if (error || !data.session) {
-        setSessionError(true);
-      } else {
-        setSessionReady(true);
-      }
-    };
-    checkSession();
+    setSessionReady(true);
   }, []);
-
   // Password strength
   const getPasswordStrength = (pwd: string) => {
     if (!pwd) return { score: 0, label: "", color: "" };
@@ -99,15 +88,28 @@ export default function ResetPasswordPage() {
     if (!validate()) return;
     setLoading(true);
     try {
-      const { error } = await supabase.auth.updateUser({
-        password: formData.password,
+      const res = await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          password: formData.password,
+        }),
       });
-      if (error) throw error;
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setErrors({
+          general: data.error || "Failed to reset password. Please try again.",
+        });
+        return;
+      }
+
       setSuccess(true);
-      setTimeout(() => router.push("/dashboard"), 3000);
+      setTimeout(() => router.push("/login"), 3000);
     } catch (err: any) {
       setErrors({
-        general: err.message || "Failed to reset password. Please try again.",
+        general: "Something went wrong. Please try again.",
       });
     } finally {
       setLoading(false);

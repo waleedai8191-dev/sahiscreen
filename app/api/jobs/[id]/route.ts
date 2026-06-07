@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { checkCvLimitServer } from "@/lib/limitChecks";
 
 // ─── Helper: verify job belongs to user's company ─────────────────────────────
 
@@ -60,36 +61,41 @@ export async function GET(
 
     // Fetch candidates WITH screening results joined
     // One query instead of two — more efficient
-    const { data: cvUploads } = await admin
+
+    // Query 1: Fetch CVs
+    const { data: cvUploads, error: cvError } = await admin
       .from("cv_uploads")
       .select(
-        `
-    id,
-    candidate_name,
-    candidate_email,
-    candidate_phone,
-    cv_url,
-    file_path,
-    status,
-    screening_status,
-    source,
-    created_at,
-    screening_results (
-      overall_score,
-      summary,
-      strengths,
-      red_flags,
-      justification,
-      recommendation
-    )
-  `,
+        "id, candidate_name, candidate_email, candidate_phone, cv_url, file_path, status, screening_status, source, created_at",
       )
       .eq("job_id", id)
       .eq("company_id", profile.company_id)
       .order("created_at", { ascending: false });
 
-    // Build stats from the same data — no second DB call needed
+    console.log("🔍 CV Error:", JSON.stringify(cvError));
+    console.log("🔍 CV count found:", cvUploads?.length);
+
     const cvList = cvUploads ?? [];
+
+    // Query 2: Fetch screening results separately
+    const cvIds = cvList.map((c) => c.id);
+    const { data: screeningResults, error: srError } =
+      cvIds.length > 0
+        ? await admin
+            .from("screening_results")
+            .select(
+              "candidate_id, overall_score, summary, strengths, red_flags, justification, recommendation, interview_questions",
+            )
+            .in("candidate_id", cvIds)
+        : { data: [], error: null };
+
+    console.log("🔍 SR Error:", JSON.stringify(srError));
+    console.log("🔍 SR count:", screeningResults?.length);
+
+    // Map results by candidate_id for fast lookup
+    const resultsMap = new Map(
+      (screeningResults ?? []).map((sr) => [sr.candidate_id, sr]),
+    );
 
     const stats = {
       total: cvList.length,
@@ -102,31 +108,27 @@ export async function GET(
     // Shape data to match what the frontend page expects
     // The page uses ai_score, ai_summary etc — these come from screening_results
     const candidates = cvList.map((c) => {
-      // screening_results is returned as array by Supabase — take first element
-      const sr = Array.isArray(c.screening_results)
-        ? c.screening_results[0]
-        : c.screening_results;
+      const sr = resultsMap.get(c.id);
 
       return {
         id: c.id,
         candidate_name: c.candidate_name,
         candidate_email: c.candidate_email,
         candidate_phone: c.candidate_phone ?? null,
-        cv_url: c.cv_url ?? c.file_path, // fallback to file_path if cv_url empty
+        cv_url: c.cv_url ?? c.file_path,
         status: c.status ?? "new",
         screening_status: c.screening_status ?? "pending",
         source: c.source ?? "manual",
         applied_at: c.created_at,
-
-        // AI fields — from screening_results join
         ai_score: sr?.overall_score ?? null,
         ai_summary: sr?.summary ?? null,
         ai_strengths: sr?.strengths ?? null,
         ai_red_flags: sr?.red_flags ?? null,
         ai_justification: sr?.justification ?? null,
+        ai_recommendation: sr?.recommendation ?? null,
+        interview_questions: sr?.interview_questions ?? [],
       };
     });
-
     // Fetch subscription quota for upload page
     const { data: sub } = await admin
       .from("subscriptions")
@@ -286,10 +288,9 @@ export async function DELETE(
       .eq("id", user.id)
       .single();
 
-    // Only admin can delete jobs
-    if (!profile || profile.role !== "admin") {
+    if (!profile || !["admin", "hr"].includes(profile.role)) {
       return NextResponse.json(
-        { error: "Admin access required" },
+        { error: "Insufficient permissions" },
         { status: 403 },
       );
     }
@@ -300,6 +301,31 @@ export async function DELETE(
       return NextResponse.json({ error: "Job not found" }, { status: 404 });
     }
 
+    // Fetch all CV file paths before deleting rows
+    const { data: cvUploads } = await admin
+      .from("cv_uploads")
+      .select("id, file_path")
+      .eq("job_id", id);
+
+    const cvIds = (cvUploads ?? []).map((c) => c.id);
+    const filePaths = (cvUploads ?? [])
+      .map((c) => c.file_path)
+      .filter(Boolean) as string[];
+
+    // Delete screening results first (foreign key)
+    if (cvIds.length > 0) {
+      await admin.from("screening_results").delete().in("candidate_id", cvIds);
+    }
+
+    // Delete cv_uploads rows
+    await admin.from("cv_uploads").delete().eq("job_id", id);
+
+    // Delete CV files from storage
+    if (filePaths.length > 0) {
+      await admin.storage.from("cvs").remove(filePaths);
+    }
+
+    // Delete the job itself
     const { error: deleteErr } = await admin
       .from("jobs")
       .delete()
@@ -314,7 +340,7 @@ export async function DELETE(
       );
     }
 
-    return new NextResponse(null, { status: 204 });
+    return NextResponse.json({ success: true });
   } catch (err) {
     console.error("DELETE /api/jobs/[id] error:", err);
     return NextResponse.json(

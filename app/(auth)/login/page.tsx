@@ -69,24 +69,24 @@ export default function LoginPage() {
     }
   };
 
-  const handleGoogleLogin = async () => {
-    setGoogleLoading(true);
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
-          queryParams: { access_type: "offline", prompt: "consent" },
-        },
-      });
-      if (error) throw error;
-    } catch (err: any) {
-      setErrors({
-        general: err.message || "Google sign-in failed. Please try again.",
-      });
-      setGoogleLoading(false);
-    }
-  };
+  // const handleGoogleLogin = async () => {
+  //   setGoogleLoading(true);
+  //   try {
+  //     const { error } = await supabase.auth.signInWithOAuth({
+  //       provider: "google",
+  //       options: {
+  //         redirectTo: `${window.location.origin}/auth/callback`,
+  //         queryParams: { access_type: "offline", prompt: "consent" },
+  //       },
+  //     });
+  //     if (error) throw error;
+  //   } catch (err: any) {
+  //     setErrors({
+  //       general: err.message || "Google sign-in failed. Please try again.",
+  //     });
+  //     setGoogleLoading(false);
+  //   }
+  // };
 
   return (
     <>
@@ -438,7 +438,7 @@ export default function LoginPage() {
         </p>
 
         {/* Google Button */}
-        <button
+        {/* <button
           className="btn-google"
           onClick={handleGoogleLogin}
           disabled={googleLoading || loading}
@@ -467,14 +467,14 @@ export default function LoginPage() {
             </svg>
           )}
           {googleLoading ? "Connecting..." : "Continue with Google"}
-        </button>
+        </button> */}
 
         {/* Divider */}
-        <div className="auth-divider">
+        {/* <div className="auth-divider">
           <div className="auth-divider-line" />
           <span className="auth-divider-text">or sign in with email</span>
           <div className="auth-divider-line" />
-        </div>
+        </div> */}
 
         {/* General Error */}
         {errors.general && (
@@ -587,15 +587,6 @@ export default function LoginPage() {
         <p className="register-link">
           New to SahiScreen? <Link href="/register">Create a free account</Link>
         </p>
-
-        {/* Trial nudge */}
-        <div className="trial-nudge">
-          <span className="trial-nudge-icon">🎁</span>
-          <p className="trial-nudge-text">
-            <strong>14-day free trial</strong> — Screen up to 50 CVs with no
-            credit card. <Link href="/register">Get started free →</Link>
-          </p>
-        </div>
       </div>
     </>
   );

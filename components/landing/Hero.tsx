@@ -549,7 +549,7 @@ export default function Hero() {
             </p>
 
             <div className="hero-actions">
-              <Link href="/register" className="btn-primary">
+              <Link href="/plans" className="btn-primary">
                 Start Free Trial →
               </Link>
               <button className="btn-secondary">

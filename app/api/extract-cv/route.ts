@@ -43,10 +43,11 @@ function cleanExtractedText(raw: string): string {
 
 async function extractFromPDF(buffer: Buffer): Promise<string> {
   try {
-    // Dynamic import — pdf-parse has issues with static imports in Next.js
-    const { default: pdfParse } = (await import("pdf-parse")) as any;
-    const data = await pdfParse(buffer);
-    return data.text ?? "";
+    const { extractText } = await import("unpdf");
+    const { text } = await extractText(new Uint8Array(buffer), {
+      mergePages: true,
+    });
+    return text ?? "";
   } catch (err) {
     console.error("PDF extraction error:", err);
     return "";

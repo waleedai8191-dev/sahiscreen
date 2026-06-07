@@ -35,16 +35,19 @@ export async function middleware(request: NextRequest) {
     "/",
     "/login",
     "/register",
+    "/verify-email",
     "/forgot-password",
     "/reset-password",
     "/auth/callback",
     "/terms",
     "/privacy",
+    "/plans",
+    "/welcome",
   ];
 
-  const isPublic = publicRoutes.some(
-    (r) => pathname === r || pathname.startsWith("/auth/"),
-  );
+  const isPublic =
+    publicRoutes.some((r) => pathname === r || pathname.startsWith("/auth/")) ||
+    pathname.startsWith("/api/");
 
   // Not logged in → redirect to login
   if (!user && !isPublic) {
@@ -54,6 +57,33 @@ export async function middleware(request: NextRequest) {
   // Logged in → redirect away from auth pages
   if (user && ["/login", "/register"].includes(pathname)) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
+  }
+
+  // Block pending_payment users from dashboard (except billing)
+  const isProtectedFromUnpaid =
+    pathname.startsWith("/dashboard") &&
+    !pathname.startsWith("/dashboard/billing");
+
+  if (user && isProtectedFromUnpaid) {
+    const { data: userRow } = await supabase
+      .from("users")
+      .select("company_id")
+      .eq("id", user.id)
+      .single();
+
+    if (userRow?.company_id) {
+      const { data: sub } = await supabase
+        .from("subscriptions")
+        .select("status")
+        .eq("company_id", userRow.company_id)
+        .single();
+
+      if (sub?.status === "pending_payment") {
+        return NextResponse.redirect(
+          new URL("/dashboard/billing?mustPay=true", request.url),
+        );
+      }
+    }
   }
 
   return supabaseResponse;

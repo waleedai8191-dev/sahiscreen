@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { incrementCvCount } from "@/lib/limitChecks";
-
+export const maxDuration = 300;
 export async function POST(req: NextRequest) {
   try {
     const admin = createSupabaseAdminClient();
@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
 
     // 4. Process each CV (calls your existing extract-cv + screen-cv routes)
     // Done asynchronously — we respond immediately and process in background
-    processCVsInBackground(cvList, job, admin);
+    await processCVsInBackground(cvList, job, admin);
 
     return NextResponse.json({
       success: true,
@@ -101,7 +101,6 @@ async function processCV(
 ) {
   try {
     // Step A: Extract CV text (uses your existing /api/extract-cv)
-    // Step A: Extract CV text directly — no HTTP round-trip
     let cvText = cv.parsed_text ?? "";
 
     if (!cvText) {
@@ -217,38 +216,9 @@ async function processCV(
         red_flags: result.red_flags,
         justification: result.justification,
         recommendation: result.recommendation,
+        interview_questions: result.interview_questions ?? [],
         status: "completed",
-        model_used: "claude-haiku-4-5",
-        screened_at: new Date().toISOString(),
-      },
-      { onConflict: "candidate_id" },
-    );
-
-    if (!result) {
-      throw new Error(`Invalid AI response: ${rawResponse.slice(0, 200)}`);
-    }
-
-    // Step C: Save to screening_results
-    await admin.from("screening_results").upsert(
-      {
-        candidate_id: cv.id,
-        cv_id: cv.id,
-        job_id: job.id,
-        company_id: cv.company_id,
-        score: result.overall_score,
-        overall_score: result.overall_score,
-        relevance_score: result.relevance_score,
-        achievement_score: result.achievement_score,
-        red_flag_score: result.red_flag_score,
-        context_score: result.context_score,
-        communication_score: result.communication_score,
-        summary: result.summary,
-        strengths: result.strengths,
-        red_flags: result.red_flags,
-        justification: result.justification,
-        recommendation: result.recommendation,
-        status: "completed",
-        model_used: "claude-haiku-4-5",
+        model_used: "claude-haiku-4-5-20251001",
         screened_at: new Date().toISOString(),
       },
       { onConflict: "candidate_id" },

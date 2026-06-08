@@ -397,8 +397,7 @@ export default function Pricing() {
               <path d="M9 12l2 2 4-4" />
               <circle cx="12" cy="12" r="10" />
             </svg>
-            14-day free trial on all plans · No credit card required · Cancel
-            anytime
+            free trial on all plans · No credit card required · Cancel anytime
           </p>
         </div>
       </section>

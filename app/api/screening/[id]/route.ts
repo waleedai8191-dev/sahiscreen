@@ -3,28 +3,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 // ─── GET /api/screening/[id] ──────────────────────────────────────────────────
-// Returns full screening result for one candidate.
-// [id] = cv_uploads.id (candidate ID)
-//
-// Response shape:
-// {
-//   candidate: { id, candidate_name, candidate_email, screening_status, ... }
-//   screening: {
-//     score: 78,
-//     overall_score: 78,
-//     relevance_score: 82,
-//     achievement_score: 75,
-//     red_flag_score: 90,
-//     context_score: 70,
-//     communication_score: 73,
-//     summary: "Strong React developer with...",
-//     strengths: ["5+ years React", "Led team of 8"],
-//     red_flags: ["No management experience"],
-//     justification: "Candidate scores highly on...",
-//     recommendation: "shortlist",
-//     hr_decision: null,
-//     status: "completed"
-//   }
+
 // }
 
 export async function GET(

@@ -351,7 +351,7 @@ export default function CtaSection() {
                 <path d="M9 12l2 2 4-4" />
                 <circle cx="12" cy="12" r="10" />
               </svg>
-              14-Day Free Trial
+              Free Trial
             </div>
             <div className="cta-trust-sep" />
             <div className="cta-trust-item">

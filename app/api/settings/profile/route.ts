@@ -37,12 +37,11 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
-    // 3. Update user_metadata via admin client (same pattern as signup)
     const admin = createSupabaseAdminClient();
     const { data: updatedUser, error: updateError } =
       await admin.auth.admin.updateUserById(user.id, {
         user_metadata: {
-          ...user.user_metadata, // preserve any other metadata
+          ...user.user_metadata,
           full_name: fullName.trim(),
           company_name: companyName.trim(),
         },

@@ -455,7 +455,7 @@ export default function MobileNav({
         {/* ── Drawer ── */}
         <SheetContent
           side="left"
-          className="p-0 border-0 w-[280px] max-w-[85vw]"
+          className="p-0 border-0 w-7 max-w-[85vw]"
           style={{ background: "#0f172a" }}
         >
           <div className="drawer-wrap mobile-sheet-inner">

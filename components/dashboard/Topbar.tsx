@@ -246,13 +246,46 @@ export default function Topbar({ profile, subscription }: TopbarProps) {
     return () => document.removeEventListener("keydown", handler);
   }, []);
 
-  const markAllRead = () =>
+  const markAllRead = async () => {
+    // Optimistic update first
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    // Persist to DB
+    await fetch("/api/notifications", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ all: true }),
+    });
+  };
 
-  const markRead = (id: string) =>
+  const markRead = async (id: string) => {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, read: true } : n)),
     );
+    await fetch("/api/notifications", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: [id] }),
+    });
+  };
+
+  const deleteNotif = async (id: string) => {
+    // Optimistic remove from UI
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
+    await fetch("/api/notifications", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+  };
+
+  const clearAllRead = async () => {
+    setNotifications((prev) => prev.filter((n) => !n.read));
+    await fetch("/api/notifications", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ all: true }),
+    });
+  };
 
   const handleSignOut = async () => {
     setSigningOut(true);
@@ -820,11 +853,22 @@ export default function Topbar({ profile, subscription }: TopbarProps) {
                   <span className="notif-header-title">
                     Notifications {unread > 0 && `(${unread})`}
                   </span>
-                  {unread > 0 && (
-                    <button className="notif-mark-all" onClick={markAllRead}>
-                      Mark all read
-                    </button>
-                  )}
+                  <div style={{ display: "flex", gap: 8 }}>
+                    {unread > 0 && (
+                      <button className="notif-mark-all" onClick={markAllRead}>
+                        Mark all read
+                      </button>
+                    )}
+                    {notifications.some((n) => n.read) && (
+                      <button
+                        className="notif-mark-all"
+                        onClick={clearAllRead}
+                        style={{ color: "#ef4444" }}
+                      >
+                        Clear read
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <div className="notif-list">
@@ -852,6 +896,38 @@ export default function Topbar({ profile, subscription }: TopbarProps) {
                             <div className="notif-time">{notif.time}</div>
                           </div>
                           {!notif.read && <span className="notif-unread-dot" />}
+                          <button
+                            style={{
+                              position: "absolute",
+                              top: 8,
+                              right: notif.read ? 10 : 22,
+                              background: "none",
+                              border: "none",
+                              cursor: "pointer",
+                              color: "#cbd5e1",
+                              padding: 2,
+                              display: "flex",
+                              alignItems: "center",
+                              borderRadius: 4,
+                              transition: "color 0.15s",
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteNotif(notif.id);
+                            }}
+                            onMouseEnter={(e) =>
+                              ((
+                                e.currentTarget as HTMLButtonElement
+                              ).style.color = "#ef4444")
+                            }
+                            onMouseLeave={(e) =>
+                              ((
+                                e.currentTarget as HTMLButtonElement
+                              ).style.color = "#cbd5e1")
+                            }
+                          >
+                            <X size={12} />
+                          </button>
                         </div>
                       );
                     })
@@ -982,11 +1058,10 @@ export default function Topbar({ profile, subscription }: TopbarProps) {
               <div className="search-hint-items">
                 {[
                   { label: "📋 All Jobs", href: "/dashboard/jobs" },
-                  { label: "👥 Candidates", href: "/dashboard/candidates" },
                   { label: "💳 Billing", href: "/dashboard/billing" },
                   { label: "⚙️ Settings", href: "/dashboard/settings" },
                   { label: "➕ New Job", href: "/dashboard/jobs/new" },
-                  { label: "📤 Upload CVs", href: "/dashboard/candidates" },
+                  { label: "📤 Upload CVs", href: "/dashboard/screening" },
                 ].map((item) => (
                   <Link
                     key={item.href}

@@ -68,8 +68,6 @@ export async function GET(
         : { data: [] };
 
     // ── Auto-heal: if screening_result exists and is completed but
-    // cv_upload still shows processing/pending — fix it automatically
-    // This handles cases where the trigger completed but status update failed
     if (screeningResults && screeningResults.length > 0) {
       const completedResultIds = screeningResults
         .filter((sr) => sr.status === "completed" && sr.overall_score !== null)

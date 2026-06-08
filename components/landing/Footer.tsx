@@ -13,7 +13,7 @@ const footerLinks = {
   company: [
     { label: "Privacy Policy", href: "/privacy" },
     { label: "Terms of Service", href: "/terms" },
-    { label: "Contact Support", href: "/contact" },
+    // { label: "Contact Support", href: "/contact" },
   ],
 };
 
@@ -441,8 +441,8 @@ export default function Footer() {
           {/* Bottom bar */}
           <div className="footer-bottom">
             <p className="footer-copyright">
-              © 2026 <span>SahiScreen Inc.</span> All rights reserved. Built for
-              the future of intelligence in Pakistan.
+              © {new Date().getFullYear()} <span>SahiScreen Inc.</span> All
+              rights reserved. Built for the future of intelligence in Pakistan.
             </p>
             <div className="footer-bottom-right">
               Built with <span className="footer-heart">♥</span> in Pakistan

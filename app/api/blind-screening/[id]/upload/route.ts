@@ -3,17 +3,6 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { checkCvLimitServer } from "@/lib/limitChecks";
 
-// ─── POST /api/blind-screening/[id]/upload ────────────────────────────────────
-// Main concept:
-// HR uploads CV files to a blind screening session.
-// Each file is:
-//   1. Checked against CV monthly limit
-//   2. Uploaded to Supabase Storage
-//   3. Inserted into cv_uploads with blind_screening_id
-//   4. Session cv_count incremented
-//
-// job_id is NULL — this is blind screening, no job posting required.
-
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -127,9 +116,9 @@ export async function POST(
       .from("cv_uploads")
       .insert({
         id: cvId,
-        job_id: null, // ← null for blind screening
-        blind_screening_id: sessionId, // ← linked to session
-        screening_mode: "blind", // ← mode flag
+        job_id: null,
+        blind_screening_id: sessionId,
+        screening_mode: "blind",
         company_id: profile.company_id,
         candidate_name: candidateName,
         candidate_email: "",

@@ -236,7 +236,6 @@ async function processBlindCV(
   admin: ReturnType<typeof createSupabaseAdminClient>,
 ) {
   try {
-    console.log("🔵 START processing cv:", cv.id, cv.candidate_name);
     // const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
     // Step A: Get CV text — extract directly (no HTTP round-trip)
@@ -258,20 +257,12 @@ async function processBlindCV(
           const ext = cv.file_path.split(".").pop()?.toLowerCase();
           if (ext === "pdf") {
             try {
-              console.log(
-                "📄 Starting PDF extraction, buffer size:",
-                buffer.length,
-              );
               const { extractText } = await import("unpdf");
               const { text } = await extractText(new Uint8Array(buffer), {
                 mergePages: true,
               });
               cvText = text ?? "";
-              console.log("📄 Extracted text length:", cvText.length);
-              console.log("📄 First 200 chars:", cvText.slice(0, 200));
-            } catch (pdfErr) {
-              console.error("PDF parse error:", pdfErr);
-            }
+            } catch (pdfErr) {}
           }
 
           // Clean the text
@@ -291,19 +282,12 @@ async function processBlindCV(
               extraction_status: cvText.length > 50 ? "completed" : "failed",
             })
             .eq("id", cv.id);
-
-          console.log(`Extracted ${cvText.length} chars from ${cv.file_path}`);
         } else {
-          console.error("Storage download failed:", downloadErr);
         }
-      } catch (extractErr) {
-        console.error("Extraction error:", extractErr);
-      }
+      } catch (extractErr) {}
     }
 
-    // Step B: Build blind prompt
-    // job_requirements present → score against them
-    // job_requirements null   → general assessment
+    // job_requirements null   → general assessment step B
     const promptInput: BlindScreeningPromptInput = {
       cvText,
       candidateName: cv.candidate_name,
@@ -322,13 +306,9 @@ async function processBlindCV(
     } else {
       rawResponse = await callClaude(systemPrompt, userPrompt, "claude-haiku");
     }
-    console.log("🤖 Raw AI response length:", rawResponse.length);
-    console.log("🤖 Raw AI response preview:", rawResponse.slice(0, 300));
 
     // Step D: Parse and validate AI response
     const result = parseAndValidateScreeningResponse(rawResponse);
-    console.log("📊 Parsed result:", result ? "SUCCESS" : "FAILED");
-    console.log("📊 Result preview:", JSON.stringify(result)?.slice(0, 200));
 
     if (!result) {
       throw new Error(
@@ -369,9 +349,6 @@ async function processBlindCV(
         { onConflict: "candidate_id" },
       );
 
-    console.log("💾 Upsert error:", JSON.stringify(upsertError));
-    console.log("💾 Upsert data:", JSON.stringify(upsertData));
-
     if (upsertError) {
       throw new Error(
         `Upsert failed: ${upsertError.message} | Code: ${upsertError.code} | Details: ${upsertError.details} | Hint: ${upsertError.hint}`,
@@ -387,15 +364,7 @@ async function processBlindCV(
     // Step G: Increment subscription CV count
     // Only on success — user never loses quota for failed screening
     await incrementCvCount(companyId, 1);
-
-    console.log(
-      `✅ Blind screening complete — cv: ${cv.id}, ` +
-        `score: ${result.overall_score}, provider: ${aiProvider}`,
-    );
   } catch (err) {
-    console.error(`❌ FAILED for cv ${cv.id}:`, err);
-    console.error(`❌ Full error:`, JSON.stringify(err));
-
     await admin
       .from("cv_uploads")
       .update({ screening_status: "failed" })

@@ -292,33 +292,41 @@ export default async function DashboardLayout({
         }
 
         /* ── Responsive ── */
-        @media (max-width: 1024px) {
-          .dash-sidebar-col {
-            width: 72px;
-          }
-          .dash-main-col {
-            margin-left: 72px;
-          }
-        }
+     @media (max-width: 1024px) {
+  .dash-sidebar-col {
+    width: 72px;
+  }
+  .dash-main-col {
+    margin-left: 72px;
+  }
+}
 
-        @media (max-width: 768px) {
-          .dash-sidebar-col {
-            display: none;
-          }
-          .dash-main-col {
-            margin-left: 0;
-          }
-          .dash-topbar-wrap {
-            display: none;
-          }
-          .dash-mobile-topbar {
-            display: flex;
-          }
-          .dash-content {
-            padding: 20px 16px;
-          }
-        }
+@media (max-width: 767px) {
+  /* Sidebar column becomes zero-width — 
+     the drawer in Sidebar.tsx renders outside 
+     normal flow via position:fixed, so it still shows */
+  .dash-sidebar-col {
+    width: 0;
+    overflow: visible;  /* critical — lets fixed children escape */
+  }
+  .dash-main-col {
+    margin-left: 0;
+    padding-top: 56px; /* clears the mobile topbar from Sidebar.tsx */
+  }
+  /* Hide desktop topbar on mobile */
+  .dash-topbar-wrap {
+    display: none;
+  }
+  .dash-content {
+    padding: 20px 16px;
+  }
+}
 
+@media (max-width: 480px) {
+  .dash-content {
+    padding: 16px 12px;
+  }
+}
         @media (max-width: 480px) {
           .dash-content {
             padding: 16px 12px;

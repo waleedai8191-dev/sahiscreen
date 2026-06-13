@@ -47,7 +47,7 @@ const PLANS: Plan[] = [
     accentColor: "#64748b",
     accentBg: "rgba(100,116,139,0.1)",
     features: [
-      { text: "10 CVs screened / month", included: true },
+      { text: "30 CVs screened /15 Days  ", included: true },
       { text: "Basic AI screening", included: true },
       { text: "1 active job", included: true },
       { text: "Community support", included: true },
@@ -67,7 +67,7 @@ const PLANS: Plan[] = [
     features: [
       { text: "1,000 CVs screened / month", included: true },
       { text: "Gemini Pro AI engine", included: true },
-      { text: "5 active jobs", included: true },
+      { text: "20 qctive jods", included: true },
       { text: "Ranking & justification", included: true },
       { text: "Email support", included: true },
       { text: "Anti-AI detection", included: false },
@@ -86,7 +86,7 @@ const PLANS: Plan[] = [
     features: [
       { text: "2,000 CVs screened / month", included: true },
       { text: "Claude Pro AI engine", included: true },
-      { text: "10 active jobs", included: true },
+      { text: "35 active jobs", included: true },
       { text: "Ranking & justification", included: true },
       { text: "Anti-AI gaming detection", included: true },
       { text: "24/7 priority support", included: true },

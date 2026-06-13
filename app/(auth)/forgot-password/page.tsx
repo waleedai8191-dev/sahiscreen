@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Loader2, Mail, ArrowLeft, CheckCircle2 } from "lucide-react";
 
@@ -9,6 +9,17 @@ export default function ForgotPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [cooldown, setCooldown] = useState(0);
+  const [attemptCount, setAttemptCount] = useState(0);
+  useEffect(() => {
+    if (cooldown <= 0) return;
+
+    const timer = setTimeout(() => {
+      setCooldown((c) => c - 1);
+    }, 1000);
+
+    return () => clearTimeout(timer); // cleanup on unmount
+  }, [cooldown]);
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
@@ -41,6 +52,8 @@ export default function ForgotPasswordPage() {
       }
 
       setSent(true);
+      setAttemptCount((c) => c + 1);
+      setCooldown(60);
     } catch (err: any) {
       setErrors({
         general: "Something went wrong. Please try again.",
@@ -245,15 +258,29 @@ export default function ForgotPasswordPage() {
 
           <p className="resend-note">
             Didn't receive it?{" "}
-            <button
-              onClick={() => {
-                setSent(false);
-                setEmail("");
-              }}
-            >
-              Try again
-            </button>{" "}
-            or check your spam folder.
+            {cooldown > 0 ? (
+              <span style={{ color: "#94a3b8", fontWeight: 600 }}>
+                Resend in {cooldown}s
+              </span>
+            ) : attemptCount >= 3 ? (
+              // Hard stop after 3 attempts — direct to support
+              <span style={{ color: "#ef4444", fontWeight: 600 }}>
+                Too many attempts.{" "}
+                <Link href="/login" style={{ color: "#7C3AED" }}>
+                  Back to sign in
+                </Link>
+              </span>
+            ) : (
+              <button
+                onClick={() => {
+                  setSent(false);
+                  // email intentionally kept — user does not have to retype
+                }}
+              >
+                Try again
+              </button>
+            )}{" "}
+            {attemptCount < 3 && cooldown === 0 && "or check your spam folder."}
           </p>
         </div>
       </>
@@ -564,7 +591,7 @@ export default function ForgotPasswordPage() {
             </svg>
             <p>
               {" "}
-              The reset link expires in <strong>&nbsp;60 minutes</strong>. If
+              The reset link expires in <strong>&nbsp;10 minutes</strong>. If
               you don't see the email, check your spam folder.
             </p>
           </div>

@@ -23,7 +23,7 @@ import {
   BarChart3,
   Sparkles,
 } from "lucide-react";
-import "../../Style/dashboard.css";
+import "../../Style/Dashboard/dashboard.css";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 

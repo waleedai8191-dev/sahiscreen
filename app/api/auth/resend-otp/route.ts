@@ -3,32 +3,33 @@ import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
 import { SignJWT, jwtVerify } from "jose";
 import { getVerificationEmailContent } from "@/lib/email/verification";
-import { type PlanTier } from "@/lib/plans";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, plan } = await req.json();
+    const { email } = await req.json();
 
     if (!email) {
       return NextResponse.json({ error: "Email is required" }, { status: 400 });
     }
 
-    const secret = new TextEncoder().encode(
-      process.env.OTP_SECRET ?? "fallback-secret",
-    );
-
+    const otpSecret = process.env.OTP_SECRET;
+    if (!otpSecret) {
+      return NextResponse.json(
+        { error: "Server configuration error." },
+        { status: 500 },
+      );
+    }
+    const secret = new TextEncoder().encode(otpSecret);
     // Step 1 — Read existing JWT to get userId
     const existingToken = req.cookies.get("otp_token")?.value;
     let userId: string | null = null;
-    let planTier = plan ?? "free";
 
     if (existingToken) {
       try {
         const { payload } = await jwtVerify(existingToken, secret);
         userId = payload.userId as string;
-        planTier = (payload.planTier as string) ?? plan ?? "free";
       } catch {
         // Token expired — find user by email
       }
@@ -50,7 +51,6 @@ export async function POST(req: NextRequest) {
       }
 
       userId = user.id;
-      planTier = user.user_metadata?.plan_tier ?? plan ?? "free";
     }
 
     // Step 3 — Generate new 4-digit OTP
@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
       email: email.trim().toLowerCase(),
       otp: otpCode,
       userId,
-      planTier,
+      planTier: "free",
     })
       .setProtectedHeader({ alg: "HS256" })
       .setExpirationTime("10m")
@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
 
     // Step 6 — Send new OTP email
     const { subject, html } = getVerificationEmailContent(
-      planTier as PlanTier,
+      "free",
       otpCode,
       fullName,
     );

@@ -4,8 +4,6 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 // ─── GET /api/screening/[id] ──────────────────────────────────────────────────
 
-// }
-
 export async function GET(
   req: NextRequest,
   { params }: { params: { id: string } },
@@ -57,7 +55,7 @@ export async function GET(
          updated_at`,
       )
       .eq("id", params.id)
-      .eq("company_id", profile.company_id) // ← ownership check
+      .eq("company_id", profile.company_id)
       .single();
 
     if (candidateErr || !candidate) {

@@ -21,7 +21,7 @@ import {
   Users,
   Target,
 } from "lucide-react";
-import "../../../../Style/newjobs.css";
+import "../../../../Style//Jobs/newjobs.css";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface JobForm {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -20,7 +20,12 @@ import { PLANS, type PlanTier } from "@/lib/plans";
 export default function RegisterPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const planTier = (searchParams.get("plan") ?? "free") as PlanTier;
+  const VALID_PLANS: PlanTier[] = ["free", "essential", "premium"];
+
+  const rawPlan = searchParams.get("plan") ?? "free";
+  const planTier: PlanTier = VALID_PLANS.includes(rawPlan as PlanTier)
+    ? (rawPlan as PlanTier)
+    : "free";
   const plan = PLANS[planTier] ?? PLANS.free;
 
   const [formData, setFormData] = useState({
@@ -30,13 +35,45 @@ export default function RegisterPage() {
     password: "",
     confirmPassword: "",
   });
+  // ── Email validator ────────
+  function isValidEmail(email: string): boolean {
+    // Must have exactly one @ symbol
+    const parts = email.split("@");
+    if (parts.length !== 2) return false;
 
+    const [local, domain] = parts;
+
+    // Local part (before @) checks
+    if (!local || local.length === 0) return false; // nothing before @
+    if (local.length > 64) return false; // RFC 5321 limit
+    if (local.startsWith(".") || local.endsWith(".")) return false;
+    if (local.includes("..")) return false; // consecutive dots
+
+    // Domain part (after @) checks
+    if (!domain || domain.length === 0) return false; // nothing after @
+    if (domain.length > 255) return false; // RFC 5321 limit
+    if (!domain.includes(".")) return false; // must have a dot
+    if (domain.startsWith(".") || domain.endsWith(".")) return false;
+    if (domain.includes("..")) return false; // consecutive dots
+
+    // TLD checks — must be at least 2 characters
+    const tld = domain.split(".").pop() ?? "";
+    if (tld.length < 2) return false; // .c is not valid
+    if (!/^[a-zA-Z]+$/.test(tld)) return false; // TLD letters only
+
+    // Overall character check — no spaces or illegal characters
+    if (/\s/.test(email)) return false; // no whitespace anywhere
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return false;
+
+    return true;
+  }
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-
-  const [confirmedPlan, setConfirmedPlan] = useState(plan);
+  const isSubmitting = useRef(false);
+  const lastSubmitTime = useRef<number>(0);
+  const SUBMIT_COOLDOWN_MS = 3000;
 
   // Password strength
   const getPasswordStrength = (pwd: string) => {
@@ -60,12 +97,16 @@ export default function RegisterPage() {
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
+    if (strength.score < 2)
+      newErrors.password = "Please choose a stronger password.";
     if (!formData.fullName.trim()) newErrors.fullName = "Full name is required";
     if (!formData.companyName.trim())
       newErrors.companyName = "Company name is required";
-    if (!formData.email.trim()) newErrors.email = "Email is required";
-    else if (!/\S+@\S+\.\S+/.test(formData.email))
-      newErrors.email = "Enter a valid email";
+    if (!formData.email.trim()) {
+      newErrors.email = "Email is required";
+    } else if (!isValidEmail(formData.email.trim())) {
+      newErrors.email = "Enter a valid email address";
+    }
     if (!formData.password) newErrors.password = "Password is required";
     else if (formData.password.length < 8)
       newErrors.password = "Password must be at least 8 characters";
@@ -85,7 +126,29 @@ export default function RegisterPage() {
 
   const handleEmailSignup = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Layer 1 — synchronous ref lock — blocks same render cycle double submit
+    if (isSubmitting.current) return;
+
+    // Layer 2 — cooldown — blocks rapid resubmission after unlock
+    const now = Date.now();
+    const timeSinceLast = now - lastSubmitTime.current;
+    if (timeSinceLast < SUBMIT_COOLDOWN_MS && lastSubmitTime.current !== 0) {
+      const secondsLeft = Math.ceil(
+        (SUBMIT_COOLDOWN_MS - timeSinceLast) / 1000,
+      );
+      setErrors({
+        general: `Please wait ${secondsLeft} second${secondsLeft !== 1 ? "s" : ""} before trying again.`,
+      });
+      return;
+    }
+
+    // Layer 3 — validation
     if (!validate()) return;
+
+    // Lock everything
+    isSubmitting.current = true;
+    lastSubmitTime.current = now;
     setLoading(true);
 
     try {
@@ -122,17 +185,17 @@ export default function RegisterPage() {
         }
         return;
       }
-      sessionStorage.setItem("reg_pwd", formData.password);
-      setConfirmedPlan(plan);
+
       router.push(
         `/verify-email?email=${encodeURIComponent(formData.email.trim().toLowerCase())}&plan=${plan.tier}`,
       );
-    } catch (err: any) {
+    } catch (err: unknown) {
       setErrors({
         general: "Something went wrong. Please try again.",
       });
     } finally {
       setLoading(false);
+      isSubmitting.current = false;
     }
   };
 

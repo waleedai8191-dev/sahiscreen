@@ -1166,12 +1166,82 @@ export default function JobDetailPage() {
           .stats-row { grid-template-columns:repeat(2,1fr); }
           .ai-panel-grid { grid-template-columns:1fr; }
         }
+          @media (max-width: 768px) {
+  .job-header-card {
+    flex-direction: column;
+  }
+  .job-header-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .job-header-icon {
+    display: none;
+  }
+}
         @media (max-width:640px) {
           .jd-page { padding:20px 16px 48px; }
           .stats-row { grid-template-columns:repeat(2,1fr); gap:10px; }
           .job-header-actions { width:100%; }
           .score-wrap { display:none; }
         }
+          @media (max-width: 768px) {
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .search-wrap {
+    max-width: 100%;
+  }
+  .filter-sel {
+    width: 100%;
+  }
+  /* inline style div with
+  marginLeft:auto — override: */
+  .toolbar > div[style] {
+    margin-left: 0 !important;
+  }
+}
+  @media (max-width: 480px) {
+  .candidate-row {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .c-info {
+    min-width: 0;
+    width: calc(100% - 52px);
+  }
+  .c-right {
+    width: 100%;
+    justify-content: flex-end;
+  }
+  .c-name {
+    font-size: 13px;
+  }
+}@media (max-width: 480px) {
+  .ai-actions {
+    flex-direction: column;
+  }
+  .ai-btn {
+    justify-content: center;
+    width: 100%;
+  }
+  .ai-panel {
+    padding: 14px 14px;
+  }
+}
+          @media (max-width: 480px) {
+  .stats-row {
+    grid-template-columns:
+      1fr 1fr; /* keep 2-col */
+    gap: 8px;
+  }
+  .stat-mini {
+    padding: 12px 14px;
+  }
+  .sm-val {
+    font-size: 17px;
+  }
+}
       `}</style>
 
       <div className="jd-page" onClick={() => setOpenMenu(null)}>
@@ -1401,7 +1471,7 @@ export default function JobDetailPage() {
               Auto-updating...
             </div>
           )}
-          <div style={{ marginLeft: "auto", display: "flex", gap: 10 }}>
+          <div className="toolbar-right" style={{ display: "flex", gap: 10 }}>
             {candidates.length > 0 && (
               <button
                 className="btn-outline"

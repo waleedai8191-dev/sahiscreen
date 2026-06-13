@@ -1,0 +1,819 @@
+/* ============================================================
+   sidebar.css  —  SahiScreen Sidebar
+   Extracted from Sidebar.tsx + full responsive layer added
+   ============================================================ */
+
+/* ── Google Font ── */
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap");
+
+/* ══════════════════════════════════════════════
+   DESIGN TOKENS
+══════════════════════════════════════════════ */
+:root {
+  /* Brand */
+  --accent: #7c3aed;
+  --accent-light: #a78bfa;
+  --accent-bg: rgba(124, 58, 237, 0.15);
+  --accent-border: rgba(124, 58, 237, 0.25);
+  --accent-hover-bg: rgba(124, 58, 237, 0.25);
+  --accent-hover-bd: rgba(124, 58, 237, 0.4);
+
+  /* Surface */
+  --surface-base: #0f172a;
+  --surface-1: rgba(255, 255, 255, 0.03);
+  --surface-2: rgba(255, 255, 255, 0.05);
+  --surface-3: rgba(255, 255, 255, 0.06);
+  --surface-4: rgba(255, 255, 255, 0.08);
+
+  /* Border */
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-medium: rgba(255, 255, 255, 0.08);
+
+  /* Text scale */
+  --text-primary: #ffffff;
+  --text-high: #e2e8f0;
+  --text-mid: #cbd5e1;
+  --text-muted: #94a3b8;
+  --text-faint: #64748b;
+  --text-ghost: #475569;
+  --text-dim: #334155;
+
+  /* Status */
+  --danger: #ef4444;
+  --warning: #f59e0b;
+  --info: #3b82f6;
+
+  /* Sidebar dimensions */
+  --sidebar-width-expanded: 240px;
+  --sidebar-width-collapsed: 64px;
+
+  /* Transitions */
+  --transition-fast: 0.18s ease;
+  --transition-base: 0.25s ease;
+}
+
+/* ══════════════════════════════════════════════
+   ROOT SIDEBAR SHELL
+══════════════════════════════════════════════ */
+.sidebar {
+  width: var(--sidebar-width-expanded);
+  height: 100%;
+  background: var(--surface-base);
+  display: flex;
+  flex-direction: column;
+  font-family: "Plus Jakarta Sans", sans-serif;
+  overflow: hidden;
+  position: relative;
+  transition:
+    width var(--transition-base),
+    transform var(--transition-base);
+  flex-shrink: 0;
+  z-index: 100;
+}
+
+/* Collapsed state — narrows the shell */
+.sidebar.collapsed {
+  width: var(--sidebar-width-collapsed);
+}
+
+/* ── Ambient top-left glow ── */
+.sidebar-glow {
+  position: absolute;
+  top: -60px;
+  left: -60px;
+  width: 200px;
+  height: 200px;
+  background: radial-gradient(
+    circle,
+    rgba(124, 58, 237, 0.15) 0%,
+    transparent 70%
+  );
+  pointer-events: none;
+  border-radius: 50%;
+}
+
+/* ══════════════════════════════════════════════
+   LOGO ROW
+══════════════════════════════════════════════ */
+.sidebar-logo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 18px 20px 20px;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.sidebar-logo-inner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  overflow: hidden;
+}
+
+.sidebar-logo-icon {
+  width: 34px;
+  height: 34px;
+  background: var(--accent);
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.4);
+}
+
+.sidebar-logo-text {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.3px;
+  white-space: nowrap;
+  transition:
+    opacity var(--transition-base),
+    width var(--transition-base);
+}
+
+.sidebar.collapsed .sidebar-logo-text {
+  opacity: 0;
+  width: 0;
+  overflow: hidden;
+}
+
+/* ── Collapse toggle button ── */
+.collapse-btn {
+  background: var(--surface-3);
+  border: 1px solid var(--border-medium);
+  border-radius: 7px;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-faint);
+  flex-shrink: 0;
+  transition: all var(--transition-fast);
+}
+
+.collapse-btn:hover {
+  background: rgba(124, 58, 237, 0.2);
+  border-color: rgba(124, 58, 237, 0.3);
+  color: var(--accent-light);
+}
+
+.sidebar.collapsed .collapse-btn {
+  margin: 0 auto;
+}
+
+/* ══════════════════════════════════════════════
+   PLAN BADGE
+══════════════════════════════════════════════ */
+.sidebar-plan {
+  margin: 14px 14px 4px;
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-1);
+  overflow: hidden;
+  transition: all var(--transition-base);
+  flex-shrink: 0;
+}
+
+.sidebar.collapsed .sidebar-plan {
+  justify-content: center;
+  padding: 10px 0;
+  margin: 14px 10px 4px;
+}
+
+.plan-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.plan-info {
+  flex: 1;
+  min-width: 0;
+  transition: opacity var(--transition-base);
+}
+
+.sidebar.collapsed .plan-info {
+  display: none;
+}
+
+.plan-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  display: block;
+  white-space: nowrap;
+}
+
+.plan-sub {
+  font-size: 10px;
+  color: var(--text-ghost);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ══════════════════════════════════════════════
+   NAVIGATION
+══════════════════════════════════════════════ */
+.sidebar-nav {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px 10px;
+  scrollbar-width: none; /* Firefox */
+}
+
+.sidebar-nav::-webkit-scrollbar {
+  display: none; /* Chrome / Safari */
+}
+
+/* Section label */
+.nav-section-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: 10px 10px 6px;
+  white-space: nowrap;
+  transition: opacity var(--transition-base);
+}
+
+.sidebar.collapsed .nav-section-label {
+  opacity: 0;
+  height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* ── Nav item ── */
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  text-decoration: none;
+  transition: all var(--transition-fast);
+  margin-bottom: 2px;
+  position: relative;
+  overflow: hidden;
+  white-space: nowrap;
+  border: 1px solid transparent; /* reserve space so active border doesn't shift */
+}
+
+.sidebar.collapsed .nav-item {
+  justify-content: center;
+  padding: 10px 0;
+}
+
+.nav-item:hover {
+  background: var(--surface-2);
+}
+
+.nav-item.active {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+}
+
+/* Left accent bar on active */
+.nav-item.active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 20%;
+  bottom: 20%;
+  width: 3px;
+  background: var(--accent);
+  border-radius: 0 3px 3px 0;
+}
+
+/* ── Nav icon ── */
+.nav-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  transition: color var(--transition-fast);
+  color: var(--text-ghost);
+}
+
+.nav-item:hover .nav-icon {
+  color: var(--text-muted);
+}
+.nav-item.active .nav-icon {
+  color: var(--accent-light);
+}
+
+/* ── Nav label ── */
+.nav-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-faint);
+  transition:
+    color var(--transition-fast),
+    opacity var(--transition-base),
+    width var(--transition-base);
+  overflow: hidden;
+}
+
+.nav-item:hover .nav-label {
+  color: var(--text-mid);
+}
+.nav-item.active .nav-label {
+  color: var(--text-high);
+  font-weight: 600;
+}
+
+.sidebar.collapsed .nav-label {
+  opacity: 0;
+  width: 0;
+}
+
+/* ── Collapsed tooltip (pure CSS) ── */
+.sidebar.collapsed .nav-item:hover::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: calc(100% + 12px);
+  top: 50%;
+  transform: translateY(-50%);
+  background: #1e293b;
+  color: var(--text-high);
+  font-family: "Plus Jakarta Sans", sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 7px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 9999;
+  border: 1px solid var(--border-medium);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* ══════════════════════════════════════════════
+   CV USAGE METER
+══════════════════════════════════════════════ */
+.sidebar-usage {
+  margin: 4px 14px 12px;
+  background: var(--surface-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 12px;
+  flex-shrink: 0;
+  overflow: hidden;
+  transition: all var(--transition-base);
+}
+
+.sidebar.collapsed .sidebar-usage {
+  display: none;
+}
+
+.usage-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 7px;
+}
+
+.usage-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-ghost);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.usage-count {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.usage-track {
+  height: 5px;
+  background: var(--surface-3);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+
+.usage-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.5s ease;
+  /* colour is applied inline from JSX based on threshold */
+}
+
+.usage-sub {
+  font-size: 10px;
+  color: var(--text-dim);
+  font-weight: 500;
+}
+
+/* ══════════════════════════════════════════════
+   UPGRADE CTA BANNER
+══════════════════════════════════════════════ */
+.sidebar-upgrade {
+  margin: 4px 14px 10px;
+  background: linear-gradient(
+    135deg,
+    rgba(124, 58, 237, 0.15),
+    rgba(124, 58, 237, 0.08)
+  );
+  border: 1px solid var(--accent-border);
+  border-radius: 10px;
+  padding: 12px;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.sidebar.collapsed .sidebar-upgrade {
+  display: none;
+}
+
+.sidebar-upgrade:hover {
+  background: linear-gradient(
+    135deg,
+    var(--accent-hover-bg),
+    rgba(124, 58, 237, 0.15)
+  );
+  border-color: var(--accent-hover-bd);
+  transform: translateY(-1px);
+}
+
+.upgrade-icon {
+  width: 30px;
+  height: 30px;
+  background: var(--accent);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.upgrade-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent-light);
+  display: block;
+  margin-bottom: 1px;
+}
+
+.upgrade-sub {
+  font-size: 10px;
+  color: var(--text-ghost);
+  font-weight: 500;
+}
+
+/* ══════════════════════════════════════════════
+   DIVIDER
+══════════════════════════════════════════════ */
+.sidebar-divider {
+  height: 1px;
+  background: var(--border-subtle);
+  margin: 4px 14px;
+  flex-shrink: 0;
+}
+
+/* ══════════════════════════════════════════════
+   BOTTOM NAV SECTION
+══════════════════════════════════════════════ */
+.sidebar-bottom {
+  padding: 8px 10px 4px;
+  flex-shrink: 0;
+}
+
+/* ══════════════════════════════════════════════
+   USER ROW
+══════════════════════════════════════════════ */
+.sidebar-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  margin: 4px 10px 10px;
+  border-radius: 10px;
+  background: var(--surface-1);
+  border: 1px solid var(--border-subtle);
+  overflow: hidden;
+  transition: all var(--transition-base);
+  flex-shrink: 0;
+}
+
+.sidebar.collapsed .sidebar-user {
+  justify-content: center;
+  padding: 10px 0;
+  margin: 4px 10px 10px;
+}
+
+.user-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--accent-light));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: white;
+  flex-shrink: 0;
+}
+
+.user-info {
+  flex: 1;
+  min-width: 0;
+  transition: opacity var(--transition-base);
+}
+
+.sidebar.collapsed .user-info {
+  display: none;
+}
+
+.user-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-high);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+}
+
+.user-role {
+  font-size: 11px;
+  color: var(--text-ghost);
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+/* Sign-out button */
+.signout-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  padding: 4px;
+  border-radius: 6px;
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.signout-btn:hover {
+  color: var(--danger);
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.sidebar.collapsed .signout-btn {
+  display: none;
+}
+
+/* ══════════════════════════════════════════════
+   RESPONSIVE BREAKPOINTS
+══════════════════════════════════════════════ */
+
+/* ── Large Desktop (≥ 1280px) — always fully expanded ── */
+@media (min-width: 1280px) {
+  .sidebar {
+    width: var(--sidebar-width-expanded);
+  }
+
+  .sidebar.collapsed {
+    width: var(--sidebar-width-collapsed);
+  }
+}
+
+/* ── Tablet / Small Laptop (768px – 1279px) — auto-collapsed ── */
+@media (min-width: 768px) and (max-width: 1279px) {
+  .sidebar {
+    width: var(--sidebar-width-collapsed);
+  }
+
+  /* Mirror all .collapsed rules at this breakpoint */
+  .sidebar .sidebar-logo-text {
+    opacity: 0;
+    width: 0;
+    overflow: hidden;
+  }
+
+  .sidebar .collapse-btn {
+    margin: 0 auto;
+  }
+
+  .sidebar .sidebar-plan {
+    justify-content: center;
+    padding: 10px 0;
+    margin: 14px 10px 4px;
+  }
+
+  .sidebar .plan-info {
+    display: none;
+  }
+  .sidebar .nav-section-label {
+    opacity: 0;
+    height: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .sidebar .nav-item {
+    justify-content: center;
+    padding: 10px 0;
+  }
+
+  .sidebar .nav-label {
+    opacity: 0;
+    width: 0;
+  }
+
+  /* Tooltip still works on tablet */
+  .sidebar .nav-item:hover::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    left: calc(100% + 12px);
+    top: 50%;
+    transform: translateY(-50%);
+    background: #1e293b;
+    color: var(--text-high);
+    font-family: "Plus Jakarta Sans", sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 5px 10px;
+    border-radius: 7px;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 9999;
+    border: 1px solid var(--border-medium);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  }
+
+  .sidebar .sidebar-usage {
+    display: none;
+  }
+  .sidebar .sidebar-upgrade {
+    display: none;
+  }
+
+  .sidebar .sidebar-user {
+    justify-content: center;
+    padding: 10px 0;
+  }
+
+  .sidebar .user-info {
+    display: none;
+  }
+  .sidebar .signout-btn {
+    display: none;
+  }
+}
+
+/* ── Mobile (< 768px) — fixed bottom tab bar ── */
+@media (max-width: 767px) {
+  /* Pull sidebar out of normal flow,
+     pin it to the bottom of the viewport */
+  .sidebar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    top: auto;
+    width: 100% !important;
+    height: auto;
+    flex-direction: row;
+    align-items: center;
+    padding: 0 8px;
+    border-top: 1px solid var(--border-subtle);
+    border-right: none;
+    z-index: 1000;
+    /* Blurred glass effect on mobile */
+    background: rgba(15, 23, 42, 0.95);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  /* Hide all desktop-only chrome */
+  .sidebar-glow,
+  .sidebar-logo,
+  .sidebar-plan,
+  .sidebar-usage,
+  .sidebar-upgrade,
+  .sidebar-divider,
+  .sidebar-bottom,
+  .sidebar-user,
+  .nav-section-label,
+  .collapse-btn {
+    display: none !important;
+  }
+
+  /* Nav becomes a horizontal row */
+  .sidebar-nav {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-around;
+    padding: 6px 0;
+    flex: 1;
+    overflow-x: auto;
+    overflow-y: visible;
+    scrollbar-width: none;
+    gap: 4px;
+  }
+
+  .sidebar-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Each item becomes a compact icon + tiny label column */
+  .nav-item {
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 6px 10px;
+    border-radius: 10px;
+    flex: 1;
+    min-width: 56px;
+    max-width: 80px;
+    border: 1px solid transparent;
+    white-space: nowrap;
+    margin-bottom: 0;
+  }
+
+  .nav-item::before {
+    display: none;
+  } /* no left accent bar */
+  .nav-item.active::before {
+    display: none;
+  }
+
+  .nav-item.active {
+    background: var(--accent-bg);
+    border-color: var(--accent-border);
+  }
+
+  /* Labels become tiny underneath the icon */
+  .nav-label {
+    opacity: 1 !important;
+    width: auto !important;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    color: var(--text-faint);
+    overflow: visible;
+  }
+
+  .nav-item:hover .nav-label,
+  .nav-item.active .nav-label {
+    color: var(--text-mid);
+  }
+
+  .nav-icon {
+    width: 18px;
+  }
+
+  /* No tooltip needed — label is visible */
+  .nav-item:hover::after {
+    display: none !important;
+  }
+
+  /* Push page content up so bottom nav doesn't overlap */
+  body {
+    padding-bottom: 68px;
+  }
+}
+
+/* ══════════════════════════════════════════════
+   UTILITY — reduce motion
+══════════════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  .sidebar,
+  .sidebar *,
+  .sidebar *::before,
+  .sidebar *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}

@@ -73,7 +73,11 @@ interface SidebarProps {
 // ── Plan badge config ─────────────────────────────────────
 
 const PLAN_CONFIG = {
-  trial: { label: "Free Trial", color: "#f59e0b", bg: "rgba(245,158,11,0.15)" },
+  trial: {
+    label: "Free · 15 Days",
+    color: "#f59e0b",
+    bg: "rgba(245,158,11,0.15)",
+  },
   essential: {
     label: "Essential",
     color: "#3b82f6",
@@ -95,6 +99,7 @@ export default function Sidebar({ profile, subscription }: SidebarProps) {
 
   const [collapsed, setCollapsed] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   // Persist collapse state
   useEffect(() => {
@@ -142,6 +147,10 @@ export default function Sidebar({ profile, subscription }: SidebarProps) {
   return (
     <>
       <style>{`
+      :root {
+  --sidebar-width-expanded: 240px;
+  --sidebar-width-collapsed: 64px;
+}
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
         .sidebar {
@@ -606,166 +615,402 @@ export default function Sidebar({ profile, subscription }: SidebarProps) {
           color: #475569;
           font-weight: 500;
         }
+          /* ── Responsive ───────────────────────────────────────── */
+
+/* Tablet: 768px–1024px — auto-collapse sidebar */
+@media (max-width: 1024px) {
+  .sidebar-logo-text {
+    font-size: 14px;
+  }
+
+  .nav-label {
+    font-size: 13px;
+  }
+
+  .sidebar-usage {
+    padding: 10px;
+  }
+
+  .sidebar-upgrade {
+    padding: 10px;
+  }
+}
+
+/* Mobile: below 768px — sidebar becomes a fixed overlay drawer */
+@media (max-width: 767px) {
+
+  /* Overlay backdrop */
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    z-index: 40;
+    backdrop-filter: blur(2px);
+    animation: fadeIn 0.2s ease;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+
+  /* Sidebar becomes full-height fixed drawer */
+  .sidebar-wrapper-mobile {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100dvh;
+    width: 260px;
+    z-index: 50;
+    transform: translateX(-100%);
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.4);
+  }
+
+  .sidebar-wrapper-mobile.open {
+    transform: translateX(0);
+  }
+
+  /* Hide collapse button on mobile — not needed */
+  .collapse-btn {
+    display: none;
+  }
+
+  /* Always show labels on mobile drawer */
+  .sidebar.collapsed .sidebar-logo-text,
+  .sidebar.collapsed .plan-info,
+  .sidebar.collapsed .nav-label,
+  .sidebar.collapsed .user-info,
+  .sidebar.collapsed .sidebar-usage,
+  .sidebar.collapsed .sidebar-upgrade,
+  .sidebar.collapsed .nav-section-label,
+  .sidebar.collapsed .signout-btn {
+    display: flex !important;
+    opacity: 1 !important;
+    width: auto !important;
+  }
+
+  .sidebar.collapsed .sidebar-logo-text {
+    display: inline !important;
+    opacity: 1 !important;
+    width: auto !important;
+  }
+
+  .sidebar.collapsed .nav-item,
+  .sidebar.collapsed .sidebar-plan,
+  .sidebar.collapsed .sidebar-user {
+    justify-content: flex-start !important;
+    padding: 10px 12px !important;
+  }
+
+  .sidebar.collapsed .nav-section-label {
+    opacity: 1 !important;
+    height: auto !important;
+    padding: 10px 10px 6px !important;
+    overflow: visible !important;
+  }
+
+  /* Disable collapsed tooltips on mobile */
+  .sidebar.collapsed .nav-item:hover::after {
+    display: none;
+  }
+
+  /* Tighten spacing for smaller screens */
+  .sidebar-logo {
+    padding: 16px 16px;
+  }
+
+  .sidebar-plan {
+    margin: 10px 10px 4px;
+  }
+
+  .sidebar-usage {
+    margin: 4px 10px 10px;
+  }
+
+  .sidebar-upgrade {
+    margin: 4px 10px 8px;
+  }
+
+  .sidebar-user {
+    margin: 4px 8px 10px;
+  }
+}
+
+/* Mobile top bar (hamburger) — rendered outside sidebar */
+.mobile-topbar {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .mobile-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    background: #0f172a;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 39;
+    height: 56px;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+  }
+
+  .mobile-topbar-logo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-decoration: none;
+  }
+
+  .mobile-topbar-logo-icon {
+    width: 30px; height: 30px;
+    background: #7C3AED;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 4px 12px rgba(124,58,237,0.4);
+  }
+
+  .mobile-topbar-logo-text {
+    font-size: 15px;
+    font-weight: 700;
+    color: #ffffff;
+    letter-spacing: -0.3px;
+  }
+
+  .hamburger-btn {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 8px;
+    width: 36px; height: 36px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    color: #94a3b8;
+    transition: all 0.2s ease;
+  }
+
+  .hamburger-btn:hover {
+    background: rgba(124,58,237,0.2);
+    border-color: rgba(124,58,237,0.3);
+    color: #a78bfa;
+  }
+}
       `}</style>
-
-      <div className={`sidebar ${collapsed ? "collapsed" : ""}`}>
-        <div className="sidebar-glow" />
-
-        {/* ── Logo ── */}
-        <div className="sidebar-logo">
-          <Link href="/dashboard" className="sidebar-logo-inner">
-            <div className="sidebar-logo-icon">
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="white"
-                strokeWidth="2.5"
-              >
-                <path d="M9 12l2 2 4-4" />
-                <path d="M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z" />
-              </svg>
-            </div>
-            <span className="sidebar-logo-text">SahiScreen</span>
-          </Link>
-          <button
-            className="collapse-btn"
-            onClick={toggleCollapse}
-            aria-label="Toggle sidebar"
+      {/* ── Mobile Top Bar ── */}
+      <div className="mobile-topbar">
+        <Link href="/dashboard" className="mobile-topbar-logo">
+          <div className="mobile-topbar-logo-icon">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="white"
+              strokeWidth="2.5"
+            >
+              <path d="M9 12l2 2 4-4" />
+              <path d="M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z" />
+            </svg>
+          </div>
+          <span className="mobile-topbar-logo-text">SahiScreen</span>
+        </Link>
+        <button
+          className="hamburger-btn"
+          onClick={() => setMobileOpen(true)}
+          aria-label="Open menu"
+        >
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
           >
-            {collapsed ? <ChevronRight size={13} /> : <ChevronLeft size={13} />}
-          </button>
-        </div>
+            <path d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
+      </div>
+      {/* ── Mobile Backdrop ── */}
+      {mobileOpen && (
+        <div
+          className="sidebar-backdrop"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
+      <div className={`sidebar-wrapper-mobile ${mobileOpen ? "open" : ""}`}>
+        <div className={`sidebar ${collapsed ? "collapsed" : ""}`}>
+          <div className="sidebar-glow" />
 
-        {/* ── Plan badge ── */}
-        <div className="sidebar-plan">
-          <span className="plan-dot" style={{ background: planCfg.color }} />
-          <div className="plan-info">
-            <span className="plan-label" style={{ color: planCfg.color }}>
-              {planCfg.label}
-            </span>
-            <span className="plan-sub">
-              {/* {profile?.company_name ?? "Your Company"} */}
-            </span>
-          </div>
-        </div>
-
-        {/* ── Main Nav ── */}
-        <nav className="sidebar-nav">
-          <div className="nav-section-label">Main Menu</div>
-
-          {NAV_ITEMS.filter((item) => item.roles.includes(userRole)).map(
-            (item) => {
-              const Icon = item.icon;
-              const active = isActive(item.href, item.exact);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`nav-item ${active ? "active" : ""}`}
-                  data-tooltip={item.label}
+          {/* ── Logo ── */}
+          <div className="sidebar-logo">
+            <Link href="/dashboard" className="sidebar-logo-inner">
+              <div className="sidebar-logo-icon">
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="white"
+                  strokeWidth="2.5"
                 >
-                  <span className="nav-icon">
-                    <Icon size={18} strokeWidth={active ? 2.2 : 1.8} />
-                  </span>
-                  <span className="nav-label">{item.label}</span>
-                </Link>
-              );
-            },
-          )}
-        </nav>
-
-        {/* ── CV Usage meter ── */}
-        {subscription && (
-          <div className="sidebar-usage">
-            <div className="usage-row">
-              <span className="usage-label">
-                <BarChart3 size={11} />
-                CV Usage
-              </span>
-              <span className="usage-count">
-                {cvUsed}/{cvLimit}
-              </span>
-            </div>
-            <div className="usage-track">
-              <div
-                className="usage-fill"
-                style={{
-                  width: `${cvPct}%`,
-                  background:
-                    cvPct >= 90
-                      ? "#ef4444"
-                      : cvPct >= 75
-                        ? "#f59e0b"
-                        : "#7C3AED",
-                }}
-              />
-            </div>
-            <span className="usage-sub">{cvPct}% used this month</span>
+                  <path d="M9 12l2 2 4-4" />
+                  <path d="M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z" />
+                </svg>
+              </div>
+              <span className="sidebar-logo-text">SahiScreen</span>
+            </Link>
+            <button
+              className="collapse-btn"
+              onClick={toggleCollapse}
+              aria-label="Toggle sidebar"
+            >
+              {collapsed ? (
+                <ChevronRight size={13} />
+              ) : (
+                <ChevronLeft size={13} />
+              )}
+            </button>
           </div>
-        )}
 
-        {/* Upgrade CTA — show for trial/essential users */}
-        {(plan === "trial" || plan === "essential") && userRole === "admin" && (
-          <Link href="/dashboard/billing" className="sidebar-upgrade">
-            <div className="upgrade-icon">
-              <Zap size={14} color="white" />
-            </div>
-            <div className="upgrade-text">
-              <span className="upgrade-title">
-                {plan === "trial" ? "Upgrade Plan" : "Go Premium"}
+          {/* ── Plan badge ── */}
+          <div className="sidebar-plan">
+            <span className="plan-dot" style={{ background: planCfg.color }} />
+            <div className="plan-info">
+              <span className="plan-label" style={{ color: planCfg.color }}>
+                {planCfg.label}
               </span>
-              <span className="upgrade-sub">
+              <span className="plan-sub">
+                {/* {profile?.company_name ?? "Your Company"} */}
+              </span>
+            </div>
+          </div>
+
+          {/* ── Main Nav ── */}
+          <nav className="sidebar-nav">
+            <div className="nav-section-label">Main Menu</div>
+
+            {NAV_ITEMS.filter((item) => item.roles.includes(userRole)).map(
+              (item) => {
+                const Icon = item.icon;
+                const active = isActive(item.href, item.exact);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`nav-item ${active ? "active" : ""}`}
+                    data-tooltip={item.label}
+                    onClick={() => setMobileOpen(false)}
+                  >
+                    <span className="nav-icon">
+                      <Icon size={18} strokeWidth={active ? 2.2 : 1.8} />
+                    </span>
+                    <span className="nav-label">{item.label}</span>
+                  </Link>
+                );
+              },
+            )}
+          </nav>
+
+          {/* ── CV Usage meter ── */}
+          {subscription && (
+            <div className="sidebar-usage">
+              <div className="usage-row">
+                <span className="usage-label">
+                  <BarChart3 size={11} />
+                  CV Usage
+                </span>
+                <span className="usage-count">
+                  {cvUsed}/{cvLimit}
+                </span>
+              </div>
+              <div className="usage-track">
+                <div
+                  className="usage-fill"
+                  style={{
+                    width: `${cvPct}%`,
+                    background:
+                      cvPct >= 90
+                        ? "#ef4444"
+                        : cvPct >= 75
+                          ? "#f59e0b"
+                          : "#7C3AED",
+                  }}
+                />
+              </div>
+              <span className="usage-sub">
                 {plan === "trial"
-                  ? "Unlock full screening power"
-                  : "Claude AI + Anti-gaming"}
+                  ? `${cvPct}% used · 15 day trial`
+                  : `${cvPct}% used this month`}
               </span>
             </div>
-          </Link>
-        )}
-
-        {/* ── Divider ── */}
-        <div className="sidebar-divider" />
-
-        {/* ── Bottom nav ── */}
-        <div className="sidebar-bottom">
-          {BOTTOM_ITEMS.filter((i) => i.roles.includes(userRole)).map(
-            (item) => {
-              const Icon = item.icon;
-              const active = isActive(item.href, false);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`nav-item ${active ? "active" : ""}`}
-                  data-tooltip={item.label}
-                >
-                  <span className="nav-icon">
-                    <Icon size={18} strokeWidth={1.8} />
-                  </span>
-                  <span className="nav-label">{item.label}</span>
-                </Link>
-              );
-            },
           )}
-        </div>
 
-        {/* ── User row ── */}
-        <div className="sidebar-user">
-          <div className="user-avatar">{initials}</div>
-          <div className="user-info">
-            <span className="user-name">{profile?.full_name ?? "User"}</span>
-            <span className="user-role">{profile?.role ?? "member"}</span>
+          {/* Upgrade CTA — show for trial/essential users */}
+          {(plan === "trial" || plan === "essential") &&
+            userRole === "admin" && (
+              <Link href="/dashboard/billing" className="sidebar-upgrade">
+                <div className="upgrade-icon">
+                  <Zap size={14} color="white" />
+                </div>
+                <div className="upgrade-text">
+                  <span className="upgrade-title">
+                    {plan === "trial" ? "Upgrade Plan" : "Go Premium"}
+                  </span>
+                  <span className="upgrade-sub">
+                    {plan === "trial"
+                      ? "30 CVs · 15 day trial"
+                      : "1000 CVs ·Pro AI Engine "}
+                  </span>
+                </div>
+              </Link>
+            )}
+
+          {/* ── Divider ── */}
+          <div className="sidebar-divider" />
+
+          {/* ── Bottom nav ── */}
+          <div className="sidebar-bottom">
+            {BOTTOM_ITEMS.filter((i) => i.roles.includes(userRole)).map(
+              (item) => {
+                const Icon = item.icon;
+                const active = isActive(item.href, false);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`nav-item ${active ? "active" : ""}`}
+                    data-tooltip={item.label}
+                    onClick={() => setMobileOpen(false)}
+                  >
+                    <span className="nav-icon">
+                      <Icon size={18} strokeWidth={1.8} />
+                    </span>
+                    <span className="nav-label">{item.label}</span>
+                  </Link>
+                );
+              },
+            )}
           </div>
-          <button
-            className="signout-btn"
-            onClick={handleSignOut}
-            disabled={signingOut}
-            title="Sign out"
-          >
-            <LogOut size={15} />
-          </button>
+
+          {/* ── User row ── */}
+          <div className="sidebar-user">
+            <div className="user-avatar">{initials}</div>
+            <div className="user-info">
+              <span className="user-name">{profile?.full_name ?? "User"}</span>
+              <span className="user-role">{profile?.role ?? "member"}</span>
+            </div>
+            <button
+              className="signout-btn"
+              onClick={handleSignOut}
+              disabled={signingOut}
+              title="Sign out"
+            >
+              <LogOut size={15} />
+            </button>
+          </div>
         </div>
       </div>
     </>

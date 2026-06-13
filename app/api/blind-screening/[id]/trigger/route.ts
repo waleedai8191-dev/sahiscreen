@@ -262,7 +262,17 @@ async function processBlindCV(
                 mergePages: true,
               });
               cvText = text ?? "";
-            } catch (pdfErr) {}
+            } catch (pdfErr) {
+              console.error("PDF parse error:", pdfErr);
+            }
+          } else if (ext === "docx") {
+            try {
+              const mammoth = await import("mammoth");
+              const result = await mammoth.extractRawText({ buffer });
+              cvText = result.value ?? "";
+            } catch (docxErr) {
+              console.error("DOCX parse error:", docxErr);
+            }
           }
 
           // Clean the text

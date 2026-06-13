@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { incrementCvCount } from "@/lib/limitChecks";
 export const maxDuration = 300;
@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
       query = query.eq("id", cvId);
     } else {
       // Bulk trigger (from HR upload page)
-      query = query.eq("screening_status", "pending");
+      query = query.in("screening_status", ["pending", "processing"]);
     }
 
     const { data: cvList, error: fetchErr } = await query;
@@ -61,10 +61,17 @@ export async function POST(req: NextRequest) {
       .update({ screening_status: "processing" })
       .in("id", cvIds);
 
-    // 4. Process each CV (calls your existing extract-cv + screen-cv routes)
-    // Done asynchronously — we respond immediately and process in background
-    await processCVsInBackground(cvList, job, admin);
+    // 4. Process each CV after response is sent — after() keeps function alive
+    // after(async () => {
+    //   await processCVsInBackground(cvList, job, admin);
+    // });
 
+    console.log(`🚀 Starting screening for ${cvList.length} CVs`);
+    after(async () => {
+      console.log(`⚙️ Processing ${cvList.length} CVs in background`);
+      await processCVsInBackground(cvList, job, admin);
+      console.log(`✅ All CVs processed`);
+    });
     return NextResponse.json({
       success: true,
       message: `Screening triggered for ${cvList.length} CV(s)`,
@@ -102,7 +109,8 @@ async function processCV(
   try {
     // Step A: Extract CV text (uses your existing /api/extract-cv)
     let cvText = cv.parsed_text ?? "";
-
+    console.log(`📄 Processing CV: ${cv.id} — ${cv.candidate_name}`);
+    // Step A: Extract CV text (uses your existing /api/extract-cv)
     if (!cvText) {
       try {
         const { data: fileData, error: downloadErr } = await admin.storage
@@ -198,7 +206,8 @@ async function processCV(
     }
 
     // Step C: Save to screening_results
-    await admin.from("screening_results").upsert(
+    // Step C: Save to screening_results
+    const { error: upsertErr } = await admin.from("screening_results").upsert(
       {
         candidate_id: cv.id,
         cv_id: cv.id,
@@ -218,16 +227,48 @@ async function processCV(
         recommendation: result.recommendation,
         interview_questions: result.interview_questions ?? [],
         status: "completed",
-        model_used: "claude-haiku-4-5-20251001",
+        model_used: "claude-haiku-4-5",
         screened_at: new Date().toISOString(),
       },
       { onConflict: "candidate_id" },
     );
+
+    if (upsertErr) {
+      throw new Error(
+        `Upsert failed: ${upsertErr.message} | Code: ${upsertErr.code} | Details: ${upsertErr.details} | Hint: ${upsertErr.hint}`,
+      );
+    }
+    // await admin.from("screening_results").upsert(
+    //   {
+    //     candidate_id: cv.id,
+    //     cv_id: cv.id,
+    //     job_id: job.id,
+    //     company_id: cv.company_id,
+    //     score: result.overall_score,
+    //     overall_score: result.overall_score,
+    //     relevance_score: result.relevance_score,
+    //     achievement_score: result.achievement_score,
+    //     red_flag_score: result.red_flag_score,
+    //     context_score: result.context_score,
+    //     communication_score: result.communication_score,
+    //     summary: result.summary,
+    //     strengths: result.strengths,
+    //     red_flags: result.red_flags,
+    //     justification: result.justification,
+    //     recommendation: result.recommendation,
+    //     interview_questions: result.interview_questions ?? [],
+    //     status: "completed",
+    //     model_used: "claude-haiku-4-5-20251001",
+    //     screened_at: new Date().toISOString(),
+    //   },
+    //   { onConflict: "candidate_id" },
+    // );
     // Step D: Update cv_uploads screening_status to completed
     await admin
       .from("cv_uploads")
       .update({ screening_status: "completed" })
       .eq("id", cv.id);
+    console.log(`✅ CV completed: ${cv.id} — ${cv.candidate_name}`);
 
     // Step E: Increment job screened_count
     const { data: jobRow } = await admin
@@ -244,7 +285,10 @@ async function processCV(
     }
     await incrementCvCount(cv.company_id, 1);
   } catch (err) {
-    console.error(`screening failed for cv ${cv.id}:`, err);
+    console.error(
+      `❌ screening failed for cv ${cv.id} — ${cv.candidate_name}:`,
+      err,
+    );
 
     // Mark as failed so HR can see it in dashboard
     await admin

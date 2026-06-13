@@ -1,25 +1,83 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff, Loader2, Mail, Lock } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
   const router = useRouter();
-  const supabase = createSupabaseBrowserClient();
+  const searchParams = useSearchParams();
 
-  const [formData, setFormData] = useState({
-    email: "",
-    password: "",
-  });
-
+  // ── 1. ALL state first ────────────────────────────────────────────────────────
+  const [formData, setFormData] = useState({ email: "", password: "" });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
+
   const [rememberMe, setRememberMe] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [checkingSession, setCheckingSession] = useState(true);
+  const [failCount, setFailCount] = useState(0);
+  const [lockoutUntil, setLockoutUntil] = useState<number | null>(null);
+  const [lockoutSeconds, setLockoutSeconds] = useState(0);
+
+  useEffect(() => {
+    if (searchParams.get("deactivated") === "true") {
+      setErrors({
+        general:
+          "Your account has been deactivated. Please contact SahiScreen support team.",
+      });
+    }
+  }, [searchParams]);
+  // ── 2. useEffects after state ─────────────────────────────────────────────────
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient();
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session) {
+        const { data: profile } = await supabase
+          .from("users")
+          .select("role")
+          .eq("id", session.user.id)
+          .single();
+
+        if (profile?.role === "superadmin") {
+          router.replace("/admin/dashboard");
+        } else {
+          router.replace("/dashboard");
+        }
+      } else {
+        setCheckingSession(false);
+      }
+    });
+  }, [router]);
+
+  useEffect(() => {
+    if (!lockoutUntil) return;
+    const interval = setInterval(() => {
+      const remaining = Math.ceil((lockoutUntil - Date.now()) / 1000);
+      if (remaining <= 0) {
+        setLockoutUntil(null);
+        setLockoutSeconds(0);
+        clearInterval(interval);
+      } else {
+        setLockoutSeconds(remaining);
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [lockoutUntil]);
+
+  // Lockout duration increases with each failure
+  // 1-2 fails → no lockout, just warning
+  // 3 fails   → 30 seconds
+  // 4 fails   → 2 minutes
+  // 5+ fails  → 10 minutes
+  function getLockoutMs(attempts: number): number {
+    if (attempts < 3) return 0;
+    if (attempts === 3) return 30 * 1000;
+    if (attempts === 4) return 2 * 60 * 1000;
+    return 10 * 60 * 1000;
+  }
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
@@ -39,24 +97,99 @@ export default function LoginPage() {
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Block if currently locked out
+    if (lockoutUntil && Date.now() < lockoutUntil) {
+      setErrors({
+        general: `Too many failed attempts. Please wait ${lockoutSeconds} seconds before trying again.`,
+      });
+      return;
+    }
+
     if (!validate()) return;
     setLoading(true);
+
     try {
+      const supabase = createSupabaseBrowserClient(!rememberMe);
       const { data, error } = await supabase.auth.signInWithPassword({
         email: formData.email.trim().toLowerCase(),
         password: formData.password,
       });
       if (error) throw error;
-      if (data.user) router.push("/dashboard");
+
+      if (data.user) {
+        // Success — reset fail counter
+        setFailCount(0);
+        setLockoutUntil(null);
+
+        if (!rememberMe && data.session) {
+          await supabase.auth.setSession({
+            access_token: data.session.access_token,
+            refresh_token: data.session.refresh_token,
+          });
+          sessionStorage.setItem("session_temporary", "true");
+        }
+
+        const { data: profile } = await supabase
+          .from("users")
+          .select("role, is_active")
+          .eq("id", data.user.id)
+          .single();
+        if (profile?.is_active === false) {
+          await supabase.auth.signOut();
+          setErrors({
+            general:
+              "Your account has been deactivated. Please contact SahiScreen support team.",
+          });
+          return;
+        }
+
+        if (profile?.role === "superadmin") {
+          router.push("/admin/dashboard");
+        } else {
+          router.push("/dashboard");
+        }
+      }
     } catch (err: any) {
       const msg = err.message || "";
-      if (
+
+      // Only count credential failures — not network errors
+      const isCredentialError =
         msg.toLowerCase().includes("invalid") ||
-        msg.toLowerCase().includes("credentials")
-      ) {
-        setErrors({
-          general: "Incorrect email or password. Please try again.",
-        });
+        msg.toLowerCase().includes("credentials") ||
+        msg.toLowerCase().includes("password");
+
+      if (isCredentialError) {
+        const newFailCount = failCount + 1;
+        setFailCount(newFailCount);
+
+        const lockoutMs = getLockoutMs(newFailCount);
+
+        if (lockoutMs > 0) {
+          // Apply lockout
+          const until = Date.now() + lockoutMs;
+          setLockoutUntil(until);
+          setLockoutSeconds(Math.ceil(lockoutMs / 1000));
+
+          const minutes = Math.round(lockoutMs / 60000);
+          const timeLabel =
+            lockoutMs < 60000
+              ? `${Math.ceil(lockoutMs / 1000)} seconds`
+              : `${minutes} minute${minutes !== 1 ? "s" : ""}`;
+
+          setErrors({
+            general: `Too many failed attempts. Please wait ${timeLabel} before trying again.`,
+          });
+        } else {
+          // Under threshold — show attempts remaining
+          const attemptsLeft = 3 - newFailCount;
+          setErrors({
+            general:
+              attemptsLeft > 0
+                ? `Incorrect email or password. ${attemptsLeft} attempt${attemptsLeft !== 1 ? "s" : ""} remaining before temporary lockout.`
+                : "Incorrect email or password. Please try again.",
+          });
+        }
       } else if (msg.toLowerCase().includes("email not confirmed")) {
         setErrors({
           general: "Please confirm your email address before signing in.",
@@ -69,24 +202,37 @@ export default function LoginPage() {
     }
   };
 
-  // const handleGoogleLogin = async () => {
-  //   setGoogleLoading(true);
-  //   try {
-  //     const { error } = await supabase.auth.signInWithOAuth({
-  //       provider: "google",
-  //       options: {
-  //         redirectTo: `${window.location.origin}/auth/callback`,
-  //         queryParams: { access_type: "offline", prompt: "consent" },
-  //       },
-  //     });
-  //     if (error) throw error;
-  //   } catch (err: any) {
-  //     setErrors({
-  //       general: err.message || "Google sign-in failed. Please try again.",
-  //     });
-  //     setGoogleLoading(false);
-  //   }
-  // };
+  // Show nothing while session check runs — prevents form flash
+  if (checkingSession) {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontFamily: "'Plus Jakarta Sans', sans-serif",
+        }}
+      >
+        <div
+          style={{
+            width: 32,
+            height: 32,
+            border: "3px solid #e2e8f0",
+            borderTopColor: "#7C3AED",
+            borderRadius: "50%",
+            animation: "spin 0.7s linear infinite",
+          }}
+        />
+        <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to   { transform: rotate(360deg); }
+        }
+      `}</style>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -576,10 +722,16 @@ export default function LoginPage() {
           <button
             type="submit"
             className="btn-submit"
-            disabled={loading || googleLoading}
+            disabled={
+              loading || (lockoutUntil !== null && Date.now() < lockoutUntil)
+            }
           >
             {loading ? <Loader2 size={18} className="animate-spin" /> : null}
-            {loading ? "Signing in..." : "Sign In →"}
+            {loading
+              ? "Signing in..."
+              : lockoutUntil && lockoutSeconds > 0
+                ? `Try again in ${lockoutSeconds}s`
+                : "Sign In →"}
           </button>
         </form>
 

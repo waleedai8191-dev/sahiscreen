@@ -47,7 +47,7 @@ export async function middleware(request: NextRequest) {
 
   const isPublic =
     publicRoutes.some((r) => pathname === r || pathname.startsWith("/auth/")) ||
-    pathname.startsWith("/api/");
+    (pathname.startsWith("/api/") && !pathname.startsWith("/api/admin"));
 
   // Not logged in → redirect to login
   if (!user && !isPublic) {
@@ -57,6 +57,60 @@ export async function middleware(request: NextRequest) {
   // Logged in → redirect away from auth pages
   if (user && ["/login", "/register"].includes(pathname)) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
+  }
+
+  // ── Admin route protection ──────────────────────────────────
+  // Think of this as the mall management office security guard
+  // Only superadmin badge holders get through
+  if (pathname.startsWith("/admin")) {
+    if (!user) {
+      return NextResponse.redirect(new URL("/login", request.url));
+    }
+
+    const { data: adminProfile, error: adminErr } = await supabase
+      .from("users")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+    if (adminProfile?.role !== "superadmin") {
+      // Logged in but not superadmin → back to their dashboard
+      return NextResponse.redirect(new URL("/dashboard", request.url));
+    }
+  }
+
+  // ── Admin API route protection ──────────────────────────────
+  // Protects /api/admin/* endpoints too
+  if (pathname.startsWith("/api/admin")) {
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { data: adminProfile } = await supabase
+      .from("users")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+
+    if (adminProfile?.role !== "superadmin") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+  }
+  // ── Deactivated account check ───────────────────────────────
+  // Like a revoked badge — even if you still have it in your pocket,
+  // the door scanner won't let you in anymore
+  if (user && pathname.startsWith("/dashboard")) {
+    const { data: activeCheck } = await supabase
+      .from("users")
+      .select("is_active")
+      .eq("id", user.id)
+      .single();
+
+    if (activeCheck?.is_active === false) {
+      await supabase.auth.signOut();
+      return NextResponse.redirect(
+        new URL("/login?deactivated=true", request.url),
+      );
+    }
   }
 
   // Block pending_payment users from dashboard (except billing)

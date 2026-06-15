@@ -24,6 +24,8 @@ import type { UserProfile, SubscriptionStatus } from "@/lib/supabase/types";
 import {
   AppNotification,
   cvSubmittedNotif,
+  cvManualUploadNotif,
+  jobCreatedNotif,
   milestonNotif,
   relativeTime,
   screeningCompleteNotif,
@@ -139,6 +141,31 @@ export default function Topbar({ profile, subscription }: TopbarProps) {
     };
   }, []);
 
+  // Auto re-fetch notifications when tab becomes visible again
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        fetch("/api/notifications")
+          .then((res) => res.json())
+          .then((data) => {
+            if (data.notifications) {
+              const hydrated: AppNotification[] = data.notifications.map(
+                (n: AppNotification) => ({
+                  ...n,
+                  createdAt: new Date(n.createdAt),
+                  time: relativeTime(new Date(n.createdAt)),
+                }),
+              );
+              setNotifications(hydrated);
+            }
+          });
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () =>
+      document.removeEventListener("visibilitychange", handleVisibility);
+  }, []);
+
   // Realtime subscriptions
   useEffect(() => {
     if (!profile) return;
@@ -157,7 +184,11 @@ export default function Topbar({ profile, subscription }: TopbarProps) {
         },
         (payload) => {
           const row = payload.new as any;
-          if (row.source === "apply_link") pushNotif(cvSubmittedNotif(row));
+          if (row.source === "apply_link") {
+            pushNotif(cvSubmittedNotif(row));
+          } else {
+            pushNotif(cvManualUploadNotif(row));
+          }
         },
       )
       .subscribe();
@@ -166,7 +197,12 @@ export default function Topbar({ profile, subscription }: TopbarProps) {
       .channel(`screening-results-${companyId}`)
       .on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "screening_results" },
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "screening_results",
+          filter: `company_id=eq.${companyId}`,
+        },
         async (payload) => {
           const row = payload.new as any;
           if (row.status !== "completed") return;
@@ -209,10 +245,29 @@ export default function Topbar({ profile, subscription }: TopbarProps) {
       )
       .subscribe();
 
+    // ✅ jobsChannel BEFORE return — all .on() calls must happen before subscribe()
+    const jobsChannel = supabase
+      .channel(`jobs-${companyId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "jobs",
+          filter: `company_id=eq.${companyId}`,
+        },
+        (payload) => {
+          const row = payload.new as any;
+          pushNotif(jobCreatedNotif(row));
+        },
+      )
+      .subscribe();
+
     return () => {
       supabase.removeChannel(cvChannel);
       supabase.removeChannel(screeningChannel);
       supabase.removeChannel(subChannel);
+      supabase.removeChannel(jobsChannel);
     };
   }, [profile, supabase, pushNotif]);
 
@@ -800,11 +855,20 @@ export default function Topbar({ profile, subscription }: TopbarProps) {
           .topbar { padding: 0 20px; }
         }
 
-        @media (max-width: 640px) {
+       @media (max-width: 640px) {
           .search-trigger { display: none; }
           .user-menu-name { display: none; }
           .user-menu-chevron { display: none; }
           .topbar { padding: 0 16px; }
+          .topbar-right { gap: 4px; flex-shrink: 0; }
+          .topbar-icon-btn {
+            width: 34px;
+            height: 34px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
         }
       `}</style>
 
@@ -833,7 +897,7 @@ export default function Topbar({ profile, subscription }: TopbarProps) {
           </div>
 
           {/* Notifications */}
-          <div style={{ position: "relative" }} ref={notifRef}>
+          <div style={{ position: "relative", flexShrink: 0 }} ref={notifRef}>
             <button
               className={`topbar-icon-btn ${notifOpen ? "active" : ""}`}
               onClick={() => {

@@ -23,7 +23,7 @@ import {
   AlertCircle,
   Trash2,
 } from "lucide-react";
-import "../../../Style/Jobs/jobs.css";
+import "../../../Style/Dashboard/Jobs/jobs.css";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

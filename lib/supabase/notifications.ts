@@ -75,6 +75,41 @@ export function usageWarningNotif(
     createdAt: new Date(),
   };
 }
+// ── CV manually uploaded by HR ───────────────────────────────────────────────
+export function cvManualUploadNotif(row: {
+  id: string;
+  candidate_name: string;
+  original_filename: string | null;
+  created_at: string;
+  job_id: string;
+}): AppNotification {
+  return {
+    id: `cv-manual-${row.id}`,
+    type: "info",
+    title: "CV Uploaded",
+    message: `${row.candidate_name ?? "A candidate"} CV was manually uploaded.`,
+    time: "Just now",
+    read: false,
+    createdAt: new Date(row.created_at),
+  };
+}
+
+// ── New job posted ────────────────────────────────────────────────────────────
+export function jobCreatedNotif(row: {
+  id: string;
+  title: string;
+  created_at: string;
+}): AppNotification {
+  return {
+    id: `job-${row.id}`,
+    type: "success",
+    title: "New Job Posted",
+    message: `Job "${row.title}" has been created successfully.`,
+    time: "Just now",
+    read: false,
+    createdAt: new Date(row.created_at),
+  };
+}
 
 // ── Milestone: every 100 CVs screened ───────────────────────────────────────
 export function milestonNotif(count: number): AppNotification {

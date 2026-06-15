@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import "../../../Style/Companies/companies.css";
+import "../../../Style/Admin/company-details.css";
 import {
   ArrowLeft,
   Loader2,
@@ -14,10 +14,8 @@ import {
   Save,
   CheckCircle2,
   AlertCircle,
-  Import,
 } from "lucide-react";
 import { PLANS, type PlanTier } from "@/lib/plans";
-import { fromTheme } from "tailwind-merge";
 
 interface CompanyData {
   company: {
@@ -157,78 +155,20 @@ export default function AdminCompanyDetailPage() {
 
   const { company, users, totalCvs, jobCount } = data;
 
-  const inputStyle: React.CSSProperties = {
-    width: "100%",
-    padding: "9px 12px",
-    border: "1.5px solid #e2e8f0",
-    borderRadius: 9,
-    fontSize: 13,
-    fontFamily: "inherit",
-    outline: "none",
-    color: "#0f172a",
-  };
-
-  const labelStyle: React.CSSProperties = {
-    display: "block",
-    fontSize: 12,
-    fontWeight: 700,
-    color: "#374151",
-    marginBottom: 6,
-  };
-
   return (
     <div>
       {/* Back link */}
-      <Link
-        href="/admin/companies"
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 6,
-          fontSize: 13,
-          fontWeight: 600,
-          color: "#64748b",
-          textDecoration: "none",
-          marginBottom: 16,
-        }}
-      >
+      <Link href="/admin/companies" className="back-link">
         <ArrowLeft size={14} /> Back to Companies
       </Link>
 
       {/* Header */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 14,
-          marginBottom: 24,
-          flexWrap: "wrap",
-        }}
-      >
-        <div
-          style={{
-            width: 48,
-            height: 48,
-            borderRadius: 12,
-            background: "rgba(124,58,237,.1)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
+      <div className="company-header">
+        <div className="company-header-icon">
           <Building2 size={22} color="#7c3aed" />
         </div>
         <div>
-          <h1
-            style={{
-              fontSize: 22,
-              fontWeight: 800,
-              color: "#0f172a",
-              letterSpacing: -0.5,
-            }}
-          >
-            {company.name}
-          </h1>
+          <h1>{company.name}</h1>
           <p style={{ fontSize: 12.5, color: "#64748b", marginTop: 2 }}>
             {company.industry ?? "—"} {company.size ? `· ${company.size}` : ""}{" "}
             · Joined{" "}
@@ -242,14 +182,7 @@ export default function AdminCompanyDetailPage() {
       </div>
 
       {/* Quick stats */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-          gap: 14,
-          marginBottom: 24,
-        }}
-      >
+      <div className="stats-grid">
         {[
           {
             label: "Total CVs",
@@ -272,42 +205,18 @@ export default function AdminCompanyDetailPage() {
         ].map((s) => {
           const Icon = s.icon;
           return (
-            <div
-              key={s.label}
-              style={{
-                background: "#fff",
-                border: "1px solid #e2e8f0",
-                borderRadius: 12,
-                padding: 16,
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-              }}
-            >
+            <div key={s.label} className="stat-card">
               <div
                 style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 9,
                   background: `${s.color}15`,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
                 }}
+                className="stat-card-icon"
               >
                 <Icon size={16} color={s.color} />
               </div>
               <div>
-                <div
-                  style={{ fontSize: 18, fontWeight: 800, color: "#0f172a" }}
-                >
-                  {s.value}
-                </div>
-                <div
-                  style={{ fontSize: 11.5, color: "#64748b", fontWeight: 600 }}
-                >
-                  {s.label}
-                </div>
+                <div className="stat-card-value">{s.value}</div>
+                <div className="stat-card-label">{s.label}</div>
               </div>
             </div>
           );
@@ -315,48 +224,15 @@ export default function AdminCompanyDetailPage() {
       </div>
 
       {/* Subscription editor */}
-      <div
-        style={{
-          background: "#fff",
-          border: "1px solid #e2e8f0",
-          borderRadius: 14,
-          padding: 24,
-          marginBottom: 24,
-        }}
-      >
-        <div
-          style={{
-            fontSize: 15,
-            fontWeight: 800,
-            color: "#0f172a",
-            marginBottom: 4,
-          }}
-        >
-          Subscription Management
-        </div>
-        <p style={{ fontSize: 12.5, color: "#64748b", marginBottom: 20 }}>
+      <div className="sub-card">
+        <div className="sub-card-title">Subscription Management</div>
+        <p className="sub-card-desc">
           Changes here update the company's plan in real time. If they're logged
           in, their billing page reflects this immediately.
         </p>
 
         {saveMsg && (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              padding: "10px 14px",
-              borderRadius: 9,
-              marginBottom: 16,
-              fontSize: 13,
-              fontWeight: 600,
-              background:
-                saveMsg.type === "success"
-                  ? "rgba(34,197,94,.08)"
-                  : "rgba(239,68,68,.08)",
-              color: saveMsg.type === "success" ? "#16a34a" : "#ef4444",
-            }}
-          >
+          <div className={`save-msg ${saveMsg.type}`}>
             {saveMsg.type === "success" ? (
               <CheckCircle2 size={15} />
             ) : (
@@ -366,21 +242,15 @@ export default function AdminCompanyDetailPage() {
           </div>
         )}
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-            gap: 16,
-            marginBottom: 16,
-          }}
-        >
+        <div className="sub-grid-2">
           {/* Plan tier */}
           <div>
-            <label style={labelStyle}>Plan Tier</label>
+            <label className="form-label">Plan Tier</label>
             <select
               value={planTier}
               onChange={(e) => handlePlanChange(e.target.value as PlanTier)}
-              style={{ ...inputStyle, cursor: "pointer", fontWeight: 600 }}
+              className="form-input"
+              style={{ cursor: "pointer", fontWeight: 600 }}
             >
               <option value="free">Free</option>
               <option value="essential">Essential</option>
@@ -390,16 +260,12 @@ export default function AdminCompanyDetailPage() {
 
           {/* Status */}
           <div>
-            <label style={labelStyle}>Subscription Status</label>
+            <label className="form-label">Subscription Status</label>
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value)}
-              style={{
-                ...inputStyle,
-                cursor: "pointer",
-                fontWeight: 600,
-                textTransform: "capitalize",
-              }}
+              className="form-input"
+              style={{ cursor: "pointer" }}
             >
               {STATUS_OPTIONS.map((s) => (
                 <option
@@ -414,75 +280,50 @@ export default function AdminCompanyDetailPage() {
           </div>
         </div>
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-            gap: 16,
-            marginBottom: 8,
-          }}
-        >
+        <div className="sub-grid-3">
           {/* CV Limit */}
           <div>
-            <label style={labelStyle}>Monthly CV Limit</label>
+            <label className="form-label">Monthly CV Limit</label>
             <input
               type="number"
               value={cvLimit}
               onChange={(e) => setCvLimit(Number(e.target.value))}
-              style={inputStyle}
+              className="form-input"
               min={0}
             />
           </div>
 
           {/* CV Used */}
           <div>
-            <label style={labelStyle}>CVs Used (current period)</label>
+            <label className="form-label">CVs Used (current period)</label>
             <input
               type="number"
               value={cvUsed}
               onChange={(e) => setCvUsed(Number(e.target.value))}
-              style={inputStyle}
+              className="form-input"
               min={0}
             />
           </div>
 
           {/* Job Limit */}
           <div>
-            <label style={labelStyle}>Active Job Limit</label>
+            <label className="form-label">Active Job Limit</label>
             <input
               type="number"
               value={jobLimit}
               onChange={(e) => setJobLimit(Number(e.target.value))}
-              style={inputStyle}
+              className="form-input"
               min={0}
             />
           </div>
         </div>
 
-        <p style={{ fontSize: 11.5, color: "#94a3b8", marginBottom: 20 }}>
+        <p className="sub-card-tip">
           Tip: Changing plan tier auto-fills limits with that plan's defaults —
           you can still override them above before saving.
         </p>
 
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 8,
-            background: "#7c3aed",
-            color: "#fff",
-            border: "none",
-            borderRadius: 9,
-            padding: "10px 20px",
-            fontSize: 13,
-            fontWeight: 700,
-            cursor: saving ? "not-allowed" : "pointer",
-            opacity: saving ? 0.7 : 1,
-            fontFamily: "inherit",
-          }}
-        >
+        <button onClick={handleSave} disabled={saving} className="btn-save">
           {saving ? (
             <Loader2 size={15} className="animate-spin" />
           ) : (
@@ -493,26 +334,9 @@ export default function AdminCompanyDetailPage() {
       </div>
 
       {/* Team members */}
-      <div
-        style={{
-          background: "#fff",
-          border: "1px solid #e2e8f0",
-          borderRadius: 14,
-          overflow: "hidden",
-        }}
-      >
-        <div
-          style={{
-            padding: "16px 20px",
-            borderBottom: "1px solid #f1f5f9",
-            fontSize: 14,
-            fontWeight: 700,
-            color: "#0f172a",
-          }}
-        >
-          Team Members ({users.length})
-        </div>
-        <div style={{ overflowX: "auto" }}>
+      <div className="team-section">
+        <div className="team-section-header">Team Members ({users.length})</div>
+        <div className="team-table-wrap">
           <table
             style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}
           >
@@ -588,17 +412,35 @@ export default function AdminCompanyDetailPage() {
             </tbody>
           </table>
         </div>
+
+        {/* Mobile cards */}
+        <div className="team-cards-wrap">
+          {users.map((u) => (
+            <div key={u.id} className="team-member-card">
+              <div>
+                <div className="team-member-name">{u.full_name ?? "—"}</div>
+                <div className="team-member-email">{u.email}</div>
+              </div>
+              <div className="team-member-meta">
+                <span className="role-text">{u.role}</span>
+                <span
+                  className={`status-badge ${u.is_active ? "active" : "inactive"}`}
+                >
+                  {u.is_active ? "Active" : "Inactive"}
+                </span>
+                <span className="joined-text">
+                  {new Date(u.created_at).toLocaleDateString("en-PK", {
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                  })}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
         {users.length === 0 && (
-          <div
-            style={{
-              padding: 30,
-              textAlign: "center",
-              color: "#94a3b8",
-              fontSize: 13,
-            }}
-          >
-            No team members yet
-          </div>
+          <div className="team-empty">No team members yet</div>
         )}
       </div>
     </div>

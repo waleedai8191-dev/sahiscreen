@@ -13,7 +13,7 @@ import {
   Building2,
   ChevronDown,
 } from "lucide-react";
-
+import "../../Style/Admin/data-history.css";
 type Tab = "cvs" | "jobs" | "screenings";
 
 interface CvRow {
@@ -137,6 +137,7 @@ export default function DataHistoryPage() {
 
   const handleDelete = async () => {
     if (!confirmDelete) return;
+
     setActionId(confirmDelete.id);
     try {
       const res = await fetch(
@@ -179,83 +180,20 @@ export default function DataHistoryPage() {
     }
   };
 
-  const thStyle: React.CSSProperties = {
-    textAlign: "left",
-    padding: "11px 16px",
-    fontSize: 11,
-    fontWeight: 700,
-    color: "#64748b",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    whiteSpace: "nowrap",
-  };
-
-  const tdStyle: React.CSSProperties = {
-    padding: "13px 16px",
-    fontSize: 13,
-    color: "#374151",
-    borderBottom: "1px solid #f1f5f9",
-  };
-
-  const tabStyle = (t: Tab): React.CSSProperties => ({
-    padding: "8px 18px",
-    borderRadius: 8,
-    border: "none",
-    fontSize: 13,
-    fontWeight: 700,
-    cursor: "pointer",
-    fontFamily: "inherit",
-    background: tab === t ? "#7c3aed" : "transparent",
-    color: tab === t ? "#fff" : "#64748b",
-    transition: "all 0.15s",
-  });
-
   return (
-    <div>
+    <div className="dh-page">
       {/* Header */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "flex-start",
-          justifyContent: "space-between",
-          marginBottom: 20,
-          flexWrap: "wrap",
-          gap: 12,
-        }}
-      >
+      <div className="dh-header">
         <div>
-          <h1
-            style={{
-              fontSize: 24,
-              fontWeight: 800,
-              color: "#0f172a",
-              letterSpacing: -0.5,
-            }}
-          >
-            Data History
-          </h1>
-          <p style={{ fontSize: 13, color: "#64748b", marginTop: 4 }}>
+          <h1 className="dh-title">Data History</h1>
+          <p className="dh-subtitle">
             View and delete CVs, jobs, and screenings across all companies
           </p>
         </div>
         <button
           onClick={fetchData}
           disabled={loading}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-            padding: "8px 16px",
-            borderRadius: 9,
-            border: "1.5px solid #e2e8f0",
-            background: "#fff",
-            fontSize: 13,
-            fontWeight: 700,
-            color: "#374151",
-            cursor: loading ? "not-allowed" : "pointer",
-            opacity: loading ? 0.6 : 1,
-            fontFamily: "inherit",
-          }}
+          className={`dh-refresh-btn${loading ? " dh-btn-disabled" : ""}`}
         >
           <RefreshCw
             size={13}
@@ -269,17 +207,7 @@ export default function DataHistoryPage() {
       </div>
 
       {/* Tabs */}
-      <div
-        style={{
-          display: "flex",
-          gap: 4,
-          background: "#f1f5f9",
-          borderRadius: 10,
-          padding: 4,
-          width: "fit-content",
-          marginBottom: 20,
-        }}
-      >
+      <div className="dh-tab-bar">
         {(["cvs", "jobs", "screenings"] as Tab[]).map((t) => (
           <button
             key={t}
@@ -288,19 +216,11 @@ export default function DataHistoryPage() {
               setSearch("");
               setCompanyFilter("all");
             }}
-            style={tabStyle(t)}
+            className={`dh-tab-btn${tab === t ? " dh-tab-active" : ""}`}
           >
             {t === "cvs" ? "CVs" : t === "jobs" ? "Jobs" : "Screenings"}
             <span
-              style={{
-                marginLeft: 6,
-                fontSize: 11,
-                fontWeight: 700,
-                background:
-                  tab === t ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.06)",
-                borderRadius: 10,
-                padding: "1px 6px",
-              }}
+              className={`dh-tab-count${tab === t ? " dh-tab-count-active" : ""}`}
             >
               {tab === t ? filtered.length : ""}
             </span>
@@ -309,16 +229,8 @@ export default function DataHistoryPage() {
       </div>
 
       {/* Filters row */}
-      <div
-        style={{
-          display: "flex",
-          gap: 10,
-          marginBottom: 14,
-          flexWrap: "wrap",
-          alignItems: "center",
-        }}
-      >
-        <div style={{ position: "relative", flex: "1 1 220px" }}>
+      <div className="dh-filters-row">
+        <div className="dh-search-wrap">
           <Search
             size={14}
             style={{
@@ -340,33 +252,13 @@ export default function DataHistoryPage() {
             }
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            style={{
-              width: "100%",
-              padding: "8px 12px 8px 34px",
-              border: "1.5px solid #e2e8f0",
-              borderRadius: 9,
-              fontSize: 13,
-              outline: "none",
-              fontFamily: "inherit",
-            }}
+            className="dh-search-input"
           />
         </div>
-
         <select
           value={companyFilter}
           onChange={(e) => setCompanyFilter(e.target.value)}
-          style={{
-            padding: "8px 14px",
-            border: "1.5px solid #e2e8f0",
-            borderRadius: 9,
-            fontSize: 13,
-            fontWeight: 600,
-            color: "#374151",
-            background: "#fff",
-            outline: "none",
-            fontFamily: "inherit",
-            cursor: "pointer",
-          }}
+          className="dh-company-select"
         >
           <option value="all">All Companies</option>
           {companies.map((c) => (
@@ -375,9 +267,8 @@ export default function DataHistoryPage() {
             </option>
           ))}
         </select>
-
         {/* Bulk delete controls */}
-        <div style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
+        <div className="dh-bulk-controls">
           {companyFilter !== "all" && (
             <button
               onClick={() =>
@@ -387,20 +278,7 @@ export default function DataHistoryPage() {
                 })
               }
               disabled={actionId === "bulk"}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "8px 14px",
-                borderRadius: 9,
-                border: "1.5px solid rgba(239,68,68,.2)",
-                background: "rgba(239,68,68,.05)",
-                fontSize: 12,
-                fontWeight: 700,
-                color: "#ef4444",
-                cursor: "pointer",
-                fontFamily: "inherit",
-              }}
+              className="dh-danger-btn dh-danger-btn-light"
             >
               <Trash2 size={13} /> Clear Company {tab}
             </button>
@@ -413,20 +291,7 @@ export default function DataHistoryPage() {
               })
             }
             disabled={actionId === "bulk"}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "8px 14px",
-              borderRadius: 9,
-              border: "1.5px solid rgba(239,68,68,.3)",
-              background: "rgba(239,68,68,.08)",
-              fontSize: 12,
-              fontWeight: 700,
-              color: "#dc2626",
-              cursor: "pointer",
-              fontFamily: "inherit",
-            }}
+            className="dh-danger-btn dh-danger-btn-strong"
           >
             <Trash2 size={13} /> Clear All {tab}
           </button>
@@ -435,24 +300,7 @@ export default function DataHistoryPage() {
 
       {/* Toast */}
       {toast && (
-        <div
-          style={{
-            position: "fixed",
-            top: 20,
-            right: 24,
-            zIndex: 100,
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            padding: "10px 16px",
-            borderRadius: 10,
-            fontSize: 13,
-            fontWeight: 600,
-            background: toast.type === "success" ? "#16a34a" : "#ef4444",
-            color: "#fff",
-            boxShadow: "0 8px 24px rgba(0,0,0,.15)",
-          }}
-        >
+        <div className={`dh-toast dh-toast-${toast.type}`}>
           {toast.type === "success" ? (
             <CheckCircle2 size={15} />
           ) : (
@@ -464,62 +312,44 @@ export default function DataHistoryPage() {
 
       {/* Table */}
       {loading ? (
-        <div style={{ display: "flex", justifyContent: "center", padding: 60 }}>
+        <div className="dh-loading">
           <Loader2 size={26} className="animate-spin" color="#7c3aed" />
         </div>
       ) : (
-        <div
-          style={{
-            background: "#fff",
-            border: "1px solid #e2e8f0",
-            borderRadius: 14,
-            overflow: "hidden",
-          }}
-        >
-          <div style={{ overflowX: "auto" }}>
-            <table
-              style={{
-                width: "100%",
-                borderCollapse: "collapse",
-                fontSize: 13,
-              }}
-            >
+        <div className="dh-table-card">
+          <div className="dh-table-scroll">
+            <table className="dh-table">
               <thead>
-                <tr
-                  style={{
-                    background: "#f8fafc",
-                    borderBottom: "1px solid #e2e8f0",
-                  }}
-                >
+                <tr className="dh-thead-row">
                   {tab === "cvs" && (
                     <>
-                      <th style={thStyle}>Candidate</th>
-                      <th style={thStyle}>File</th>
-                      <th style={thStyle}>Company</th>
-                      <th style={thStyle}>Status</th>
-                      <th style={thStyle}>Uploaded</th>
-                      <th style={thStyle}></th>
+                      <th className="dh-th">Candidate</th>
+                      <th className="dh-th">File</th>
+                      <th className="dh-th">Company</th>
+                      <th className="dh-th">Status</th>
+                      <th className="dh-th">Uploaded</th>
+                      <th className="dh-th"></th>
                     </>
                   )}
                   {tab === "jobs" && (
                     <>
-                      <th style={thStyle}>Job Title</th>
-                      <th style={thStyle}>Company</th>
-                      <th style={thStyle}>Department</th>
-                      <th style={thStyle}>Status</th>
-                      <th style={thStyle}>CVs</th>
-                      <th style={thStyle}>Created</th>
-                      <th style={thStyle}></th>
+                      <th className="dh-th">Job Title</th>
+                      <th className="dh-th">Company</th>
+                      <th className="dh-th">Department</th>
+                      <th className="dh-th">Status</th>
+                      <th className="dh-th">CVs</th>
+                      <th className="dh-th">Created</th>
+                      <th className="dh-th"></th>
                     </>
                   )}
                   {tab === "screenings" && (
                     <>
-                      <th style={thStyle}>Screening Name</th>
-                      <th style={thStyle}>Company</th>
-                      <th style={thStyle}>Status</th>
-                      <th style={thStyle}>CVs</th>
-                      <th style={thStyle}>Created</th>
-                      <th style={thStyle}></th>
+                      <th className="dh-th">Screening Name</th>
+                      <th className="dh-th">Company</th>
+                      <th className="dh-th">Status</th>
+                      <th className="dh-th">CVs</th>
+                      <th className="dh-th">Created</th>
+                      <th className="dh-th"></th>
                     </>
                   )}
                 </tr>
@@ -534,65 +364,47 @@ export default function DataHistoryPage() {
                       STATUS_COLORS.pending;
                     return (
                       <tr key={r.id}>
-                        <td style={tdStyle}>
-                          <div style={{ fontWeight: 700, color: "#0f172a" }}>
+                        <td className="dh-td">
+                          <div className="dh-cell-title">
                             {r.candidate_name ?? "—"}
                           </div>
-                          <div style={{ fontSize: 11.5, color: "#94a3b8" }}>
+                          <div className="dh-cell-sub">
                             {r.candidate_email ?? "—"}
                           </div>
                         </td>
-                        <td style={tdStyle}>
-                          <div
-                            style={{
-                              maxWidth: 180,
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap",
-                              color: "#374151",
-                            }}
-                          >
+                        <td className="dh-td">
+                          <div className="dh-cell-filename">
                             {r.original_filename}
                           </div>
-                          <div style={{ fontSize: 11.5, color: "#94a3b8" }}>
+                          <div className="dh-cell-sub">
                             {r.file_size_kb ? `${r.file_size_kb} KB` : "—"}
                           </div>
                         </td>
-                        <td style={tdStyle}>
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 5,
-                            }}
-                          >
+                        <td className="dh-td">
+                          <div className="dh-cell-company">
                             <Building2 size={12} color="#94a3b8" />
                             {r.company_name}
                           </div>
                         </td>
-                        <td style={tdStyle}>
+                        <td className="dh-td">
                           <span
+                            className="dh-badge"
                             style={{
-                              fontSize: 11,
-                              fontWeight: 700,
-                              padding: "3px 9px",
-                              borderRadius: 20,
                               background: statusStyle.bg,
                               color: statusStyle.color,
-                              textTransform: "capitalize",
                             }}
                           >
                             {r.screening_status ?? "pending"}
                           </span>
                         </td>
-                        <td style={{ ...tdStyle, color: "#64748b" }}>
+                        <td className="dh-td dh-td-muted">
                           {new Date(r.created_at).toLocaleDateString("en-PK", {
                             day: "numeric",
                             month: "short",
                             year: "numeric",
                           })}
                         </td>
-                        <td style={tdStyle}>
+                        <td className="dh-td">
                           <button
                             onClick={() =>
                               setConfirmDelete({
@@ -601,20 +413,7 @@ export default function DataHistoryPage() {
                               })
                             }
                             disabled={busy}
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: 5,
-                              padding: "5px 10px",
-                              borderRadius: 7,
-                              border: "1.5px solid rgba(239,68,68,.2)",
-                              background: "rgba(239,68,68,.05)",
-                              fontSize: 11.5,
-                              fontWeight: 700,
-                              color: "#ef4444",
-                              cursor: busy ? "not-allowed" : "pointer",
-                              opacity: busy ? 0.6 : 1,
-                            }}
+                            className={`dh-delete-btn${busy ? " dh-btn-disabled" : ""}`}
                           >
                             {busy ? (
                               <Loader2 size={11} className="animate-spin" />
@@ -634,75 +433,48 @@ export default function DataHistoryPage() {
                       STATUS_COLORS[r.status] ?? STATUS_COLORS.draft;
                     return (
                       <tr key={r.id}>
-                        <td style={tdStyle}>
-                          <div style={{ fontWeight: 700, color: "#0f172a" }}>
-                            {r.title}
-                          </div>
-                          <div style={{ fontSize: 11.5, color: "#94a3b8" }}>
+                        <td className="dh-td">
+                          <div className="dh-cell-title">{r.title}</div>
+                          <div className="dh-cell-sub">
                             {r.location ?? "—"}{" "}
                             {r.job_type ? `· ${r.job_type}` : ""}
                           </div>
                         </td>
-                        <td style={tdStyle}>
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 5,
-                            }}
-                          >
+                        <td className="dh-td">
+                          <div className="dh-cell-company">
                             <Building2 size={12} color="#94a3b8" />
                             {r.company_name}
                           </div>
                         </td>
-                        <td style={{ ...tdStyle, color: "#64748b" }}>
+                        <td className="dh-td dh-td-muted">
                           {r.department ?? "—"}
                         </td>
-                        <td style={tdStyle}>
+                        <td className="dh-td">
                           <span
+                            className="dh-badge"
                             style={{
-                              fontSize: 11,
-                              fontWeight: 700,
-                              padding: "3px 9px",
-                              borderRadius: 20,
                               background: statusStyle.bg,
                               color: statusStyle.color,
-                              textTransform: "capitalize",
                             }}
                           >
                             {r.status}
                           </span>
                         </td>
-                        <td style={{ ...tdStyle, fontWeight: 700 }}>
-                          {r.cv_count ?? 0}
-                        </td>
-                        <td style={{ ...tdStyle, color: "#64748b" }}>
+                        <td className="dh-td dh-td-bold">{r.cv_count ?? 0}</td>
+                        <td className="dh-td dh-td-muted">
                           {new Date(r.created_at).toLocaleDateString("en-PK", {
                             day: "numeric",
                             month: "short",
                             year: "numeric",
                           })}
                         </td>
-                        <td style={tdStyle}>
+                        <td className="dh-td">
                           <button
                             onClick={() =>
                               setConfirmDelete({ id: r.id, label: r.title })
                             }
                             disabled={busy}
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: 5,
-                              padding: "5px 10px",
-                              borderRadius: 7,
-                              border: "1.5px solid rgba(239,68,68,.2)",
-                              background: "rgba(239,68,68,.05)",
-                              fontSize: 11.5,
-                              fontWeight: 700,
-                              color: "#ef4444",
-                              cursor: busy ? "not-allowed" : "pointer",
-                              opacity: busy ? 0.6 : 1,
-                            }}
+                            className={`dh-delete-btn${busy ? " dh-btn-disabled" : ""}`}
                           >
                             {busy ? (
                               <Loader2 size={11} className="animate-spin" />
@@ -722,68 +494,41 @@ export default function DataHistoryPage() {
                       STATUS_COLORS[r.status] ?? STATUS_COLORS.pending;
                     return (
                       <tr key={r.id}>
-                        <td style={tdStyle}>
-                          <div style={{ fontWeight: 700, color: "#0f172a" }}>
-                            {r.name}
-                          </div>
+                        <td className="dh-td">
+                          <div className="dh-cell-title">{r.name}</div>
                         </td>
-                        <td style={tdStyle}>
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 5,
-                            }}
-                          >
+                        <td className="dh-td">
+                          <div className="dh-cell-company">
                             <Building2 size={12} color="#94a3b8" />
                             {r.company_name}
                           </div>
                         </td>
-                        <td style={tdStyle}>
+                        <td className="dh-td">
                           <span
+                            className="dh-badge"
                             style={{
-                              fontSize: 11,
-                              fontWeight: 700,
-                              padding: "3px 9px",
-                              borderRadius: 20,
                               background: statusStyle.bg,
                               color: statusStyle.color,
-                              textTransform: "capitalize",
                             }}
                           >
                             {r.status}
                           </span>
                         </td>
-                        <td style={{ ...tdStyle, fontWeight: 700 }}>
-                          {r.cv_count ?? 0}
-                        </td>
-                        <td style={{ ...tdStyle, color: "#64748b" }}>
+                        <td className="dh-td dh-td-bold">{r.cv_count ?? 0}</td>
+                        <td className="dh-td dh-td-muted">
                           {new Date(r.created_at).toLocaleDateString("en-PK", {
                             day: "numeric",
                             month: "short",
                             year: "numeric",
                           })}
                         </td>
-                        <td style={tdStyle}>
+                        <td className="dh-td">
                           <button
                             onClick={() =>
                               setConfirmDelete({ id: r.id, label: r.name })
                             }
                             disabled={busy}
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: 5,
-                              padding: "5px 10px",
-                              borderRadius: 7,
-                              border: "1.5px solid rgba(239,68,68,.2)",
-                              background: "rgba(239,68,68,.05)",
-                              fontSize: 11.5,
-                              fontWeight: 700,
-                              color: "#ef4444",
-                              cursor: busy ? "not-allowed" : "pointer",
-                              opacity: busy ? 0.6 : 1,
-                            }}
+                            className={`dh-delete-btn${busy ? " dh-btn-disabled" : ""}`}
                           >
                             {busy ? (
                               <Loader2 size={11} className="animate-spin" />
@@ -804,16 +549,7 @@ export default function DataHistoryPage() {
           </div>
 
           {filtered.length === 0 && !loading && (
-            <div
-              style={{
-                padding: 40,
-                textAlign: "center",
-                color: "#94a3b8",
-                fontSize: 13,
-              }}
-            >
-              No records found
-            </div>
+            <div className="dh-empty">No records found</div>
           )}
         </div>
       )}
@@ -821,97 +557,36 @@ export default function DataHistoryPage() {
       {/* Single delete confirm modal */}
       {confirmDelete && (
         <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(15,23,42,.45)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 200,
-          }}
+          className="dh-modal-backdrop"
           onClick={() => setConfirmDelete(null)}
         >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: "#fff",
-              borderRadius: 14,
-              padding: 24,
-              width: "90%",
-              maxWidth: 380,
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                marginBottom: 12,
-              }}
-            >
-              <div
-                style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 9,
-                  background: "rgba(239,68,68,.1)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
+          <div onClick={(e) => e.stopPropagation()} className="dh-modal-box">
+            <div className="dh-modal-header">
+              <div className="dh-modal-icon">
                 <AlertTriangle size={17} color="#ef4444" />
               </div>
-              <div style={{ fontSize: 15, fontWeight: 800, color: "#0f172a" }}>
-                Delete Record?
-              </div>
+              <div className="dh-modal-title">Delete Record?</div>
             </div>
-            <p
-              style={{
-                fontSize: 13,
-                color: "#64748b",
-                marginBottom: 20,
-                lineHeight: 1.6,
-              }}
-            >
+            <p className="dh-modal-body">
               This will permanently delete{" "}
               <strong>{confirmDelete.label}</strong>. This cannot be undone.
             </p>
-            <div
-              style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}
-            >
+            <div className="dh-modal-actions">
               <button
                 onClick={() => setConfirmDelete(null)}
-                style={{
-                  padding: "9px 18px",
-                  borderRadius: 9,
-                  border: "1.5px solid #e2e8f0",
-                  background: "#fff",
-                  fontSize: 13,
-                  fontWeight: 700,
-                  color: "#374151",
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                }}
+                className="dh-modal-cancel"
               >
                 Cancel
               </button>
               <button
                 onClick={handleDelete}
-                style={{
-                  padding: "9px 18px",
-                  borderRadius: 9,
-                  border: "none",
-                  background: "#ef4444",
-                  fontSize: 13,
-                  fontWeight: 700,
-                  color: "#fff",
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                }}
+                disabled={actionId === confirmDelete?.id}
+                className="dh-modal-confirm"
               >
-                Delete
+                {actionId === confirmDelete?.id && (
+                  <Loader2 size={13} className="animate-spin" />
+                )}
+                {actionId === confirmDelete?.id ? "Deleting..." : "Delete"}
               </button>
             </div>
           </div>
@@ -920,101 +595,29 @@ export default function DataHistoryPage() {
 
       {/* Bulk delete confirm modal */}
       {confirmBulk && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(15,23,42,.45)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 200,
-          }}
-          onClick={() => setConfirmBulk(null)}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: "#fff",
-              borderRadius: 14,
-              padding: 24,
-              width: "90%",
-              maxWidth: 400,
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                marginBottom: 12,
-              }}
-            >
-              <div
-                style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 9,
-                  background: "rgba(239,68,68,.1)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
+        <div className="dh-modal-backdrop" onClick={() => setConfirmBulk(null)}>
+          <div onClick={(e) => e.stopPropagation()} className="dh-modal-box">
+            <div className="dh-modal-header">
+              <div className="dh-modal-icon">
                 <AlertTriangle size={17} color="#ef4444" />
               </div>
-              <div style={{ fontSize: 15, fontWeight: 800, color: "#0f172a" }}>
-                Bulk Delete?
-              </div>
+              <div className="dh-modal-title">Bulk Delete?</div>
             </div>
-            <p
-              style={{
-                fontSize: 13,
-                color: "#64748b",
-                marginBottom: 20,
-                lineHeight: 1.6,
-              }}
-            >
+            <p className="dh-modal-body">
               This will permanently delete <strong>{confirmBulk.label}</strong>.
               This cannot be undone.
             </p>
-            <div
-              style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}
-            >
+            <div className="dh-modal-actions">
               <button
                 onClick={() => setConfirmBulk(null)}
-                style={{
-                  padding: "9px 18px",
-                  borderRadius: 9,
-                  border: "1.5px solid #e2e8f0",
-                  background: "#fff",
-                  fontSize: 13,
-                  fontWeight: 700,
-                  color: "#374151",
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                }}
+                className="dh-modal-cancel"
               >
                 Cancel
               </button>
               <button
                 onClick={handleBulkDelete}
                 disabled={actionId === "bulk"}
-                style={{
-                  padding: "9px 18px",
-                  borderRadius: 9,
-                  border: "none",
-                  background: "#ef4444",
-                  fontSize: 13,
-                  fontWeight: 700,
-                  color: "#fff",
-                  cursor: actionId === "bulk" ? "not-allowed" : "pointer",
-                  opacity: actionId === "bulk" ? 0.7 : 1,
-                  fontFamily: "inherit",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 6,
-                }}
+                className="dh-modal-confirm"
               >
                 {actionId === "bulk" && (
                   <Loader2 size={13} className="animate-spin" />

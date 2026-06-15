@@ -129,7 +129,18 @@ export async function POST(req: NextRequest) {
         { status: 410 },
       );
     }
+    const { count: existingCount } = await admin
+      .from("cv_uploads")
+      .select("*", { count: "exact", head: true })
+      .eq("job_id", job_id)
+      .eq("candidate_email", candidate_email.trim().toLowerCase());
 
+    if (existingCount && existingCount > 0) {
+      return NextResponse.json(
+        { error: "You have already applied for this position." },
+        { status: 409 },
+      );
+    }
     // 4. Check company CV quota
     const { data: sub } = await admin
       .from("subscriptions")

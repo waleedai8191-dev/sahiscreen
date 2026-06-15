@@ -24,10 +24,17 @@ export default function AdminDashboardPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/admin/stats")
-      .then((res) => res.json())
-      .then((data) => setStats(data))
-      .finally(() => setLoading(false));
+    const fetchStats = () => {
+      fetch("/api/admin/stats")
+        .then((res) => res.json())
+        .then((data) => setStats(data))
+        .finally(() => setLoading(false));
+    };
+    fetchStats();
+
+    // Re-fetch every 30 seconds to stay fresh
+    const interval = setInterval(fetchStats, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   if (loading) {

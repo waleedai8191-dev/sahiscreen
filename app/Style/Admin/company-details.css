@@ -1,0 +1,462 @@
+/* ═══════════════════════════════════════════════
+   COMPANY DETAIL PAGE — RESPONSIVE STYLES
+   Logic: Desktop-first, then shrink down with
+   media queries at 768px (tablet) and 480px (mobile)
+═══════════════════════════════════════════════ */
+
+/* ── 1. BACK LINK ──────────────────────────────
+   Simple inline-flex link, no responsiveness
+   needed — works at all sizes as-is
+─────────────────────────────────────────────── */
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  text-decoration: none;
+  margin-bottom: 16px;
+}
+
+.back-link:hover {
+  color: #7c3aed;
+}
+
+/* ── 2. COMPANY HEADER ─────────────────────────
+   Icon + company name + meta info side by side.
+   flex-wrap: wrap means on narrow screens the
+   text drops below the icon naturally.
+─────────────────────────────────────────────── */
+.company-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 24px;
+  flex-wrap: wrap; /* icon + text wrap on small screens */
+}
+
+.company-header-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: rgba(124, 58, 237, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0; /* never squish the icon */
+}
+.company-header-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.company-header-text h1 {
+  font-size: 22px;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.5px;
+  word-break: break-word;
+}
+
+.company-header-text p {
+  font-size: 12.5px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+/* ── 3. QUICK STATS GRID ───────────────────────
+   auto-fit + minmax is the core responsive trick:
+   - Desktop: 3 columns (each ~160px+)
+   - Tablet:  2 columns (when 3 don't fit)
+   - Mobile:  1 column  (overridden at 480px)
+
+   repeat(auto-fit, minmax(160px, 1fr)) means:
+   "fit as many 160px columns as possible,
+    let each grow to fill remaining space"
+─────────────────────────────────────────────── */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+.stat-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.stat-card-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.stat-card-value {
+  font-size: 18px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.stat-card-label {
+  font-size: 11.5px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+/* ── 4. SUBSCRIPTION CARD ──────────────────────
+   The white card wrapping the entire form.
+   Padding shrinks on mobile (handled in media query)
+─────────────────────────────────────────────── */
+.sub-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.sub-card-title {
+  font-size: 15px;
+  font-weight: 800;
+  color: #0f172a;
+  margin-bottom: 4px;
+}
+
+.sub-card-desc {
+  font-size: 12.5px;
+  color: #64748b;
+  margin-bottom: 20px;
+}
+
+.sub-card-tip {
+  font-size: 11.5px;
+  color: #94a3b8;
+  margin-bottom: 20px;
+}
+
+/* ── 5. SUBSCRIPTION FORM GRIDS ───────────────
+   Same auto-fit trick as stats grid.
+   sub-grid-2: Plan Tier + Status (2 fields)
+   sub-grid-3: CV Limit + CV Used + Job Limit (3 fields)
+
+   minmax(180px, 1fr) means each field needs
+   at least 180px — on mobile they stack to 1 column
+─────────────────────────────────────────────── */
+.sub-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.sub-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.form-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: #374151;
+  margin-bottom: 6px;
+}
+
+.form-input {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 9px;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  color: #0f172a;
+  background: #fff;
+  -webkit-appearance: none;
+  appearance: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.form-input:focus {
+  border-color: #7c3aed;
+}
+
+/* ── 6. SAVE MESSAGE BANNER ────────────────────
+   Inline alert that appears above save button.
+   Two modifier classes swap the colors.
+─────────────────────────────────────────────── */
+.save-msg {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 9px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.save-msg.success {
+  background: rgba(34, 197, 94, 0.08);
+  color: #16a34a;
+}
+
+.save-msg.error {
+  background: rgba(239, 68, 68, 0.08);
+  color: #ef4444;
+}
+
+/* ── 7. SAVE BUTTON ────────────────────────────
+   Full-width on mobile (handled in media query),
+   auto-width on desktop
+─────────────────────────────────────────────── */
+.btn-save {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #7c3aed;
+  color: #fff;
+  border: none;
+  border-radius: 9px;
+  padding: 10px 20px;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn-save:hover:not(:disabled) {
+  background: #6d28d9;
+}
+
+.btn-save:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* ── 8. TEAM MEMBERS SECTION ───────────────────
+   Desktop: full table with 5 columns
+   Mobile: table hidden, member cards shown instead
+   (same desktop-table / mobile-cards pattern as users page)
+─────────────────────────────────────────────── */
+.team-section {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.team-section-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+/* Desktop table — visible by default */
+.team-table-wrap {
+  display: block;
+  overflow-x: auto;
+}
+
+/* Mobile cards — hidden by default */
+.team-cards-wrap {
+  display: none;
+  flex-direction: column;
+  gap: 0;
+}
+
+.team-member-card {
+  padding: 14px 16px;
+  border-bottom: 1px solid #f1f5f9;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.team-member-card:last-child {
+  border-bottom: none;
+}
+
+.team-member-name {
+  font-weight: 700;
+  font-size: 14px;
+  color: #0f172a;
+}
+
+.team-member-email {
+  font-size: 12px;
+  color: #94a3b8;
+  margin-top: 1px;
+}
+
+.team-member-meta {
+  display: flex;
+  flex-wrap: wrap; /* role + status + date wrap if needed */
+  gap: 8px;
+  align-items: center;
+}
+
+.status-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 9px;
+  border-radius: 20px;
+}
+
+.status-badge.active {
+  background: rgba(34, 197, 94, 0.1);
+  color: #16a34a;
+}
+
+.status-badge.inactive {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+.role-text {
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
+  text-transform: capitalize;
+}
+
+.joined-text {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.team-empty {
+  padding: 30px;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+/* ═══════════════════════════════════════════════
+   MEDIA QUERIES
+   Two breakpoints:
+   768px = tablet / large phone landscape
+   480px = small phone portrait
+═══════════════════════════════════════════════ */
+
+/* ── TABLET (≤768px) ───────────────────────────
+   - Subscription card padding shrinks
+   - Stats go to 2 columns
+   - Team table hides, member cards appear
+   - Save button goes full width
+─────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  /* Shrink card padding so content isn't cramped */
+  .sub-card {
+    padding: 16px;
+  }
+
+  /* 2 columns fits better than 3 on tablet */
+  .stats-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  /* Hide the desktop table */
+  .team-table-wrap {
+    display: none;
+  }
+
+  /* Show the mobile cards instead */
+  .team-cards-wrap {
+    display: flex;
+  }
+
+  /* Save button stretches full width on mobile
+     so it's easy to tap */
+  .btn-save {
+    width: 100%;
+    justify-content: center;
+  }
+  .btn-save {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Header text size slightly smaller */
+  .company-header-text h1 {
+    font-size: 19px;
+  }
+}
+
+/* ── SMALL MOBILE (≤480px) ─────────────────────
+   - Stats collapse to single column
+   - sub-grid-2 and sub-grid-3 both become
+     single column (auto-fit already handles this
+     at this width but being explicit is safer)
+   - Header icon slightly smaller
+─────────────────────────────────────────────── */
+@media (max-width: 480px) {
+  /* Single column — each stat takes full width */
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Force single column on very narrow screens
+     even though auto-fit would do it anyway */
+  .sub-grid-2,
+  .sub-grid-3 {
+    grid-template-columns: 1fr;
+  }
+
+  /* Slightly smaller icon on tiny screens */
+  .company-header-icon {
+    width: 40px;
+    height: 40px;
+  }
+
+  /* Tighter card padding on small phones */
+  .sub-card {
+    padding: 14px;
+  }
+
+  /* Smaller title on small phones */
+  .company-header-text h1 {
+    font-size: 17px;
+  }
+}
+/* ── VERY SMALL (≤360px) — Galaxy Fold, iPhone SE gen1 ─
+   Belt-and-suspenders: force single column on
+   everything before auto-fit even tries 2 cols
+──────────────────────────────────────────────────────── */
+@media (max-width: 360px) {
+  .stats-grid,
+  .sub-grid-2,
+  .sub-grid-3 {
+    grid-template-columns: 1fr;
+  }
+
+  .sub-card {
+    padding: 12px;
+  }
+
+  .company-header-text h1 {
+    font-size: 15px;
+  }
+
+  .back-link {
+    font-size: 12px;
+  }
+}

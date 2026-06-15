@@ -1,0 +1,335 @@
+/* ── SHELL ── */
+.adminShell {
+  display: flex;
+  min-height: 100vh;
+  background: #f8fafc;
+  font-family: "Plus Jakarta Sans", sans-serif;
+}
+
+/* ── SIDEBAR ── */
+.adminSidebar {
+  width: 240px;
+  background: #0f172a;
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  z-index: 50;
+  overflow-y: auto;
+  transition: transform 0.25s ease;
+}
+
+/* ── SIDEBAR OVERLAY ── */
+.adminSidebarOverlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.5);
+  z-index: 49;
+  backdrop-filter: blur(2px);
+}
+
+.adminSidebarOverlay.open {
+  display: block;
+}
+
+/* ── SIDEBAR CLOSE BUTTON ── */
+.adminSidebarClose {
+  display: none;
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* ── LOGO ── */
+.adminLogo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 20px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.adminLogoIcon {
+  width: 34px;
+  height: 34px;
+  background: linear-gradient(135deg, #7c3aed, #5b21b6);
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.adminLogoText {
+  font-size: 14px;
+  font-weight: 800;
+  color: #f1f5f9;
+  letter-spacing: -0.3px;
+}
+
+.adminLogoBadge {
+  font-size: 9px;
+  font-weight: 700;
+  background: rgba(124, 58, 237, 0.3);
+  border: 1px solid rgba(124, 58, 237, 0.4);
+  color: #a78bfa;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ── NAV ── */
+.adminNav {
+  padding: 12px 8px;
+  flex: 1;
+}
+
+.adminNavSection {
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.25);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  padding: 8px 10px 6px;
+}
+
+.adminNavItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 9px;
+  text-decoration: none;
+  transition: background 0.15s;
+  margin-bottom: 2px;
+  border: 1px solid transparent;
+}
+
+.adminNavItem:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.adminNavItem.active {
+  background: rgba(124, 58, 237, 0.2);
+  border-color: rgba(124, 58, 237, 0.25);
+}
+
+.adminNavIcon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.adminNavItem.active .adminNavIcon {
+  background: rgba(124, 58, 237, 0.3);
+}
+
+.adminNavLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.adminNavItem.active .adminNavLabel {
+  color: #e2e8f0;
+}
+
+.adminNavDesc {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.25);
+  margin-top: 1px;
+}
+
+/* ── SIDEBAR FOOTER ── */
+.adminSidebarFooter {
+  padding: 12px 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+}
+
+.adminLogoutBtn {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 12px;
+  border-radius: 9px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12px;
+  font-weight: 600;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  width: 100%;
+  font-family: "Plus Jakarta Sans", sans-serif;
+  transition: background 0.15s;
+}
+
+.adminLogoutBtn:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
+}
+
+.adminLogoutBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── MAIN ── */
+.adminMain {
+  margin-left: 240px;
+  flex: 1;
+  min-width: 0; /* ← fixes flex overflow trap */
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+}
+
+/* ── TOPBAR ── */
+.adminTopbar {
+  height: 56px;
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  gap: 12px;
+}
+
+.adminTopbarLeft {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #64748b;
+  min-width: 0;
+}
+
+.adminTopbarSep {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #cbd5e1;
+  flex-shrink: 0;
+}
+
+.adminTopbarPage {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.adminSuperadminBadge {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(124, 58, 237, 0.08);
+  border: 1px solid rgba(124, 58, 237, 0.15);
+  border-radius: 20px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #7c3aed;
+  flex-shrink: 0;
+}
+
+/* ── HAMBURGER ── */
+.adminHamburger {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  border: 1.5px solid #e2e8f0;
+  background: #fff;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* ── CONTENT ── */
+.adminContent {
+  padding: 28px 32px 60px;
+  flex: 1;
+  min-width: 0; /* ← fixes flex overflow trap */
+  overflow-x: hidden;
+}
+
+/* ══════════════════════════════
+   RESPONSIVE — 768px
+═══════════════════════════════ */
+@media (max-width: 768px) {
+  .adminSidebar {
+    transform: translateX(-100%);
+    width: 260px;
+  }
+
+  .adminSidebar.open {
+    transform: translateX(0);
+  }
+
+  .adminSidebarOverlay.open {
+    display: block;
+  }
+
+  .adminSidebarClose {
+    display: flex;
+  }
+
+  .adminMain {
+    margin-left: 0;
+  }
+
+  .adminHamburger {
+    display: flex;
+  }
+
+  .adminContent {
+    padding: 20px 16px 48px;
+  }
+
+  .adminTopbar {
+    padding: 0 16px;
+  }
+
+  .adminSuperadminBadge span {
+    display: none;
+  }
+}
+
+/* ══════════════════════════════
+   RESPONSIVE — 480px
+═══════════════════════════════ */
+@media (max-width: 480px) {
+  .adminTopbarSep,
+  .adminTopbarLeft > span:first-child {
+    display: none;
+  }
+}

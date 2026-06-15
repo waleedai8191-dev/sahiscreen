@@ -167,8 +167,11 @@ export default function ApplyPage() {
         `/apply/${slug}/success?name=${encodeURIComponent(fullName.trim())}`,
       );
     } catch (err: any) {
+      const isDuplicate = err.message?.includes("already applied");
       setErrors({
-        submit: err.message ?? "Something went wrong. Please try again.",
+        submit: isDuplicate
+          ? "You've already submitted an application for this position with this record."
+          : (err.message ?? "Something went wrong. Please try again."),
       });
       setSubmitting(false);
     }

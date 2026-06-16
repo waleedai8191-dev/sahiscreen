@@ -318,11 +318,17 @@ export default function JobsPage() {
 
       if (!res.ok) {
         // Step 3a — API failed, roll back to snapshot
+        const json = await res.json().catch(() => ({ error: "Unknown error" }));
         const { error } = await res
           .json()
           .catch(() => ({ error: "Unknown error" }));
         setJobs(previousJobs);
         setCounts(previousCounts);
+        if (json.code === "JOB_LIMIT_REACHED") {
+          setStatusError(
+            `Plan limit reached — you have ${json.current}/${json.limit} active jobs on your ${json.plan} plan. Close or delete a job first, or upgrade your plan.`,
+          );
+        }
         setStatusError(`Failed to update status: ${error ?? res.status}`);
         setUpdatingJobId(null);
         return;

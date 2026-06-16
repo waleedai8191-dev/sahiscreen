@@ -66,11 +66,11 @@ export async function POST(req: NextRequest) {
     //   await processCVsInBackground(cvList, job, admin);
     // });
 
-    console.log(`🚀 Starting screening for ${cvList.length} CVs`);
+    // console.log(`🚀 Starting screening for ${cvList.length} CVs`);
     after(async () => {
-      console.log(`⚙️ Processing ${cvList.length} CVs in background`);
+      // console.log(`⚙️ Processing ${cvList.length} CVs in background`);
       await processCVsInBackground(cvList, job, admin);
-      console.log(`✅ All CVs processed`);
+      // console.log(`✅ All CVs processed`);
     });
     return NextResponse.json({
       success: true,

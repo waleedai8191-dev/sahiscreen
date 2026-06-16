@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import "../../../../Style/Dashboard/Screening/screening-details.css";
 import {
   ArrowLeft,
   Users,
@@ -250,6 +251,100 @@ function downloadInterviewQuestions(candidate: Candidate, sessionName: string) {
   );
 }
 
+// ─── Animated screening ring ──────────────────────────────────────────────────
+
+function ProcessingRing() {
+  const [progress, setProgress] = useState(12);
+  const size = 48;
+  const stroke = 3.5;
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - (progress / 100) * circumference;
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setProgress((p) => {
+        if (p >= 89) return 89;
+        const step = p < 40 ? 1.8 : p < 65 ? 1.1 : 0.5;
+        return Math.min(p + step, 89);
+      });
+    }, 400);
+    return () => clearInterval(interval);
+  }, []);
+
+  const color = progress >= 60 ? "#d97706" : "#7C3AED";
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: 3,
+      }}
+    >
+      <div style={{ position: "relative", width: size, height: size }}>
+        <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            fill="none"
+            stroke="#e2e8f0"
+            strokeWidth={stroke}
+          />
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            fill="none"
+            stroke={color}
+            strokeWidth={stroke}
+            strokeDasharray={circumference}
+            strokeDashoffset={offset}
+            strokeLinecap="round"
+            style={{
+              transition: "stroke-dashoffset 0.4s ease, stroke 0.6s ease",
+            }}
+          />
+        </svg>
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 800,
+              color,
+              lineHeight: 1,
+              transition: "color 0.6s ease",
+            }}
+          >
+            {Math.round(progress)}%
+          </span>
+        </div>
+      </div>
+      <span
+        style={{
+          fontSize: 9,
+          fontWeight: 700,
+          color: "#7C3AED",
+          letterSpacing: ".03em",
+          textTransform: "uppercase",
+        }}
+      >
+        Screening
+      </span>
+    </div>
+  );
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function BlindScreeningDetailPage() {
@@ -292,6 +387,112 @@ export default function BlindScreeningDetailPage() {
       return n;
     });
 
+  // ─── Animated screening ring ──────────────────────────────────────────────────
+
+  function ProcessingRing() {
+    const [progress, setProgress] = useState(12);
+    const size = 48;
+    const stroke = 3.5;
+    const radius = (size - stroke) / 2;
+    const circumference = 2 * Math.PI * radius;
+    const offset = circumference - (progress / 100) * circumference;
+
+    useEffect(() => {
+      // Crawl from 12 → 89 slowly, never completes (real completion triggers re-render)
+      const interval = setInterval(() => {
+        setProgress((p) => {
+          if (p >= 89) return 89; // stall near end — never fake 100%
+          // Slow down as it approaches 89
+          const step = p < 40 ? 1.8 : p < 65 ? 1.1 : 0.5;
+          return Math.min(p + step, 89);
+        });
+      }, 400);
+      return () => clearInterval(interval);
+    }, []);
+
+    // Color transitions: purple → amber at 60+
+    const color = progress >= 60 ? "#d97706" : "#7C3AED";
+    const trackColor =
+      progress >= 60 ? "rgba(245,158,11,0.12)" : "rgba(124,58,237,0.1)";
+
+    return (
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: 3,
+        }}
+      >
+        <div style={{ position: "relative", width: size, height: size }}>
+          <svg
+            width={size}
+            height={size}
+            style={{ transform: "rotate(-90deg)" }}
+          >
+            {/* Track */}
+            <circle
+              cx={size / 2}
+              cy={size / 2}
+              r={radius}
+              fill="none"
+              stroke="#e2e8f0"
+              strokeWidth={stroke}
+            />
+            {/* Progress arc */}
+            <circle
+              cx={size / 2}
+              cy={size / 2}
+              r={radius}
+              fill="none"
+              stroke={color}
+              strokeWidth={stroke}
+              strokeDasharray={circumference}
+              strokeDashoffset={offset}
+              strokeLinecap="round"
+              style={{
+                transition: "stroke-dashoffset 0.4s ease, stroke 0.6s ease",
+              }}
+            />
+          </svg>
+          {/* Center number */}
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexDirection: "column",
+            }}
+          >
+            <span
+              style={{
+                fontSize: 11,
+                fontWeight: 800,
+                color,
+                lineHeight: 1,
+                transition: "color 0.6s ease",
+              }}
+            >
+              {Math.round(progress)}%
+            </span>
+          </div>
+        </div>
+        <span
+          style={{
+            fontSize: 9,
+            fontWeight: 700,
+            color: "#7C3AED",
+            letterSpacing: ".03em",
+            textTransform: "uppercase",
+          }}
+        >
+          Screening
+        </span>
+      </div>
+    );
+  }
   // ── Upload more CVs helpers ───────────────────────────────────────────────
 
   const toBase64Upload = (file: File): Promise<string> =>
@@ -614,206 +815,6 @@ export default function BlindScreeningDetailPage() {
 
   return (
     <>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-        * { box-sizing: border-box; }
-        .sd-page {
-          min-height: 100%; background: #f8fafc;
-          padding: 28px 32px 60px;
-          font-family: 'Plus Jakarta Sans', sans-serif;
-        }
-        @keyframes fadeUp { from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)} }
-        @keyframes shimmer { from{background-position:-400px 0}to{background-position:400px 0} }
-        @keyframes spin { from{transform:rotate(0deg)}to{transform:rotate(360deg)} }
-        .reveal{animation:fadeUp .38s cubic-bezier(.22,1,.36,1) both}
-        .r1{animation-delay:.04s}.r2{animation-delay:.10s}
-        .r3{animation-delay:.16s}.r4{animation-delay:.22s}
-        .spinning{animation:spin 1.2s linear infinite}
-
-        .back-link{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:#64748b;text-decoration:none;margin-bottom:18px;transition:color .18s}
-        .back-link:hover{color:#7C3AED}
-
-        .header-card{background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:22px 24px;margin-bottom:20px;display:flex;align-items:flex-start;gap:18px;flex-wrap:wrap}
-        .header-icon{width:52px;height:52px;border-radius:14px;background:rgba(124,58,237,.1);display:flex;align-items:center;justify-content:center;flex-shrink:0}
-        .header-info{flex:1;min-width:0}
-        .header-title{font-size:20px;font-weight:800;color:#0f172a;letter-spacing:-.4px;margin-bottom:4px}
-        .header-desc{font-size:13px;color:#64748b;margin-bottom:6px}
-        .header-actions{display:flex;gap:10px;align-items:center;flex-shrink:0;flex-wrap:wrap}
-
-        .btn-outline{display:flex;align-items:center;gap:7px;padding:9px 16px;border-radius:10px;border:1.5px solid #e2e8f0;background:#fff;font-size:13px;font-weight:600;color:#374151;cursor:pointer;transition:all .18s;white-space:nowrap;font-family:'Plus Jakarta Sans',sans-serif;text-decoration:none}
-        .btn-outline:hover{border-color:#7C3AED;color:#7C3AED}
-
-        .stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
-        .stat-mini{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px 18px;display:flex;align-items:center;gap:12px}
-        .sm-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-        .sm-val{font-size:20px;font-weight:800;color:#0f172a;letter-spacing:-.5px}
-        .sm-lbl{font-size:11px;color:#64748b;font-weight:500;margin-top:1px}
-
-        .toolbar{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap}
-        .search-wrap{position:relative;flex:1;min-width:180px;max-width:300px}
-        .search-ico{position:absolute;left:11px;top:50%;transform:translateY(-50%);pointer-events:none}
-        .search-inp{width:100%;padding:8px 12px 8px 34px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:13px;font-family:'Plus Jakarta Sans',sans-serif;color:#0f172a;background:#fff;outline:none;transition:border-color .2s,box-shadow .2s}
-        .search-inp::placeholder{color:#94a3b8}
-        .search-inp:focus{border-color:#7C3AED;box-shadow:0 0 0 3px rgba(124,58,237,.08)}
-        .sel-wrap{position:relative}
-        .filter-sel{padding:8px 30px 8px 12px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:12px;font-weight:600;font-family:'Plus Jakarta Sans',sans-serif;color:#374151;background:#fff;outline:none;cursor:pointer;appearance:none}
-        .sel-arr{position:absolute;right:9px;top:50%;transform:translateY(-50%);pointer-events:none}
-        .sort-btn{display:flex;align-items:center;gap:6px;padding:8px 14px;border:1.5px solid #e2e8f0;border-radius:10px;background:#fff;font-size:12px;font-weight:600;color:#374151;cursor:pointer;transition:all .18s;font-family:'Plus Jakarta Sans',sans-serif}
-        .sort-btn.active{border-color:#7C3AED;color:#7C3AED;background:rgba(124,58,237,.06)}
-
-        .candidate-card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;margin-bottom:10px;overflow:hidden;transition:box-shadow .2s,transform .18s}
-        .candidate-card:hover{box-shadow:0 4px 20px rgba(0,0,0,.07);transform:translateY(-1px)}
-        .candidate-row{display:flex;align-items:center;gap:14px;padding:14px 18px;cursor:default}
-        .c-avatar{width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;flex-shrink:0}
-        .c-info{flex:1;min-width:0}
-        .c-name{font-size:14px;font-weight:700;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-        .c-meta{display:flex;align-items:center;gap:7px;margin-top:3px;flex-wrap:wrap}
-        .c-meta-item{font-size:11px;color:#64748b;font-weight:500}
-        .c-dot{width:3px;height:3px;border-radius:50%;background:#cbd5e1;flex-shrink:0}
-        .score-wrap{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:56px}
-        .score-ring{width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;border:3px solid;flex-shrink:0}
-        .score-label{font-size:10px;font-weight:700}
-        .c-right{display:flex;align-items:center;gap:10px;flex-shrink:0}
-        .c-status{font-size:11px;font-weight:600;padding:4px 10px;border-radius:20px;white-space:nowrap}
-        .expand-btn{width:30px;height:30px;border-radius:8px;border:1.5px solid #e2e8f0;background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:border-color .2s}
-        .expand-btn:hover{border-color:#7C3AED}
-
-        .ai-panel{border-top:1px solid #f1f5f9;padding:18px 20px;background:linear-gradient(135deg,rgba(124,58,237,.02),rgba(91,33,182,.01));animation:fadeUp .28s cubic-bezier(.22,1,.36,1)}
-        .ai-panel-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-        .ai-section-title{font-size:11px;font-weight:700;color:#7C3AED;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;display:flex;align-items:center;gap:6px}
-        .ai-summary{font-size:13px;color:#374151;line-height:1.6;background:rgba(124,58,237,.04);border:1px solid rgba(124,58,237,.1);border-radius:10px;padding:12px 14px;margin-bottom:14px}
-        .ai-list{display:flex;flex-direction:column;gap:6px}
-        .ai-list-item{display:flex;align-items:flex-start;gap:8px;font-size:12px;color:#374151;line-height:1.45}
-        .ai-list-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;margin-top:4px}
-        .ai-actions{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
-        .ai-btn{display:flex;align-items:center;gap:6px;padding:8px 14px;border-radius:9px;font-size:12px;font-weight:600;cursor:pointer;transition:all .18s;white-space:nowrap;font-family:'Plus Jakarta Sans',sans-serif}
-        .ai-btn.shortlist{background:rgba(34,197,94,.1);color:#16a34a;border:1.5px solid rgba(34,197,94,.25)}
-        .ai-btn.shortlist:hover{background:rgba(34,197,94,.18)}
-        .ai-btn.reject{background:rgba(239,68,68,.08);color:#ef4444;border:1.5px solid rgba(239,68,68,.2)}
-        .ai-btn.reject:hover{background:rgba(239,68,68,.14)}
-        .ai-btn.view{background:#f8fafc;color:#374151;border:1.5px solid #e2e8f0}
-        .ai-btn.view:hover{border-color:#7C3AED;color:#7C3AED}
-
-        .pending-badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:#94a3b8;background:#f8fafc;border:1px solid #e2e8f0;padding:4px 10px;border-radius:20px}
-
-        .empty-state{background:#fff;border:1px dashed #e2e8f0;border-radius:16px;padding:52px 24px;text-align:center}
-        .empty-icon{width:56px;height:56px;border-radius:14px;background:rgba(124,58,237,.08);display:flex;align-items:center;justify-content:center;margin:0 auto 14px}
-        .empty-title{font-size:15px;font-weight:700;color:#0f172a;margin-bottom:6px}
-        .empty-sub{font-size:13px;color:#94a3b8}
-.status-pill{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:4px 11px;border-radius:20px}
-
-.pdf-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100;animation:fadeIn .2s ease}
-       
-
-  .delete-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px}
-        .delete-dialog{background:#fff;border-radius:16px;padding:28px;width:100%;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,.2)}
-        .delete-dialog-title{font-size:17px;font-weight:800;color:#0f172a;margin-bottom:6px}
-        .delete-dialog-sub{font-size:13px;color:#64748b;margin-bottom:20px;line-height:1.5}
-        .delete-warning{background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2);border-radius:10px;padding:12px 14px;font-size:12px;color:#dc2626;font-weight:500;margin-bottom:16px;line-height:1.5}
-        .delete-confirm-input{width:100%;padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:13px;font-family:'Plus Jakarta Sans',sans-serif;color:#0f172a;outline:none;margin-bottom:16px;transition:border-color .2s}
-        .delete-confirm-input:focus{border-color:#ef4444;box-shadow:0 0 0 3px rgba(239,68,68,.08)}
-        .delete-dialog-actions{display:flex;gap:10px;justify-content:flex-end}
-        .btn-delete{display:inline-flex;align-items:center;gap:6px;padding:9px 18px;border-radius:9px;background:#ef4444;border:none;font-size:13px;font-weight:700;color:#fff;cursor:pointer;transition:all .18s;font-family:'Plus Jakarta Sans',sans-serif}
-        .btn-delete:hover:not(:disabled){background:#dc2626}
-        .btn-delete:disabled{opacity:.5;cursor:not-allowed}
-        .btn-cancel-del{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:9px;border:1.5px solid #e2e8f0;background:#fff;font-size:13px;font-weight:600;color:#374151;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif}
-
-        .upload-panel{background:#fff;
-        .upload-panel{background:#fff;border:1px solid #e2e8f0;border-radius:14px;margin-bottom:20px;overflow:hidden}
-        .upload-panel-header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;cursor:pointer;transition:background .18s}
-        .upload-panel-header:hover{background:#f8fafc}
-        .upload-panel-title{font-size:13px;font-weight:700;color:#0f172a;display:flex;align-items:center;gap:8px}
-        .upload-panel-body{padding:16px 18px;border-top:1px solid #f1f5f9}
-        .upload-drop{border:2px dashed #e2e8f0;border-radius:10px;padding:28px 20px;text-align:center;cursor:pointer;transition:all .2s}
-        .upload-drop:hover,.upload-drop.drag{border-color:#7C3AED;background:rgba(124,58,237,.03)}
-        .upload-drop-title{font-size:13px;font-weight:700;color:#0f172a;margin:8px 0 3px}
-        .upload-drop-sub{font-size:11px;color:#94a3b8}
-        .upload-file-list{margin-top:12px;display:flex;flex-direction:column;gap:7px}
-        .upload-file-row{display:flex;align-items:center;gap:10px;padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px}
-        .upload-file-name{flex:1;font-size:12px;font-weight:500;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-        .upload-file-size{font-size:11px;color:#94a3b8;flex-shrink:0}
-        .upload-actions{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap}
-        .btn-upload-trigger{display:inline-flex;align-items:center;gap:6px;padding:9px 18px;border-radius:9px;background:linear-gradient(135deg,#7C3AED,#5b21b6);border:none;font-size:12px;font-weight:700;color:#fff;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;transition:transform .18s;box-shadow:0 3px 10px rgba(124,58,237,.25)}
-        .btn-upload-trigger:hover:not(:disabled){transform:translateY(-1px)}
-        .btn-upload-trigger:disabled{opacity:.6;cursor:not-allowed}
-        .btn-upload-cancel{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:9px;border:1.5px solid #e2e8f0;background:#fff;font-size:12px;font-weight:600;color:#64748b;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;transition:all .18s}
-        .btn-upload-cancel:hover{border-color:#94a3b8;color:#374151}
-
-        .interview-section{margin-top:16px;background:rgba(59,130,246,.03);border:1px solid rgba(59,130,246,.12);border-radius:10px;padding:14px 16px}
-        .interview-title{font-size:11px;font-weight:700;color:#2563eb;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between}
-        .interview-list{display:flex;flex-direction:column;gap:10px}
-        .interview-item{display:flex;align-items:flex-start;gap:10px;font-size:12.5px;color:#374151;line-height:1.55}
-        .interview-num{width:22px;height:22px;border-radius:6px;background:#2563eb;color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
-        .download-btn{display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:7px;background:rgba(37,99,235,.1);color:#2563eb;border:1.5px solid rgba(37,99,235,.2);font-size:11px;font-weight:700;cursor:pointer;transition:all .18s;font-family:'Plus Jakarta Sans',sans-serif}
-        .download-btn:hover{background:rgba(37,99,235,.18);border-color:rgba(37,99,235,.35)}
-        @media(max-width:900px){.stats-row{grid-template-columns:repeat(2,1fr)}.ai-panel-grid{grid-template-columns:1fr}}
-        @media(max-width:640px){.sd-page{padding:20px 16px 48px}.score-wrap{display:none}}
-        .interview-section {
-  margin-top: 16px;
-  background: rgba(59,130,246,.03);
-  border: 1px solid rgba(59,130,246,.12);
-  border-radius: 10px;
-  padding: 14px 16px;
-}
-.interview-title {
-  font-size: 11px;
-  font-weight: 700;
-  color: #2563eb;
-  text-transform: uppercase;
-  letter-spacing: .06em;
-  margin-bottom: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.interview-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.interview-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  font-size: 12.5px;
-  color: #374151;
-  line-height: 1.55;
-}
-.interview-num {
-  width: 22px;
-  height: 22px;
-  border-radius: 6px;
-  background: #2563eb;
-  color: #fff;
-  font-size: 11px;
-  font-weight: 800;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  margin-top: 1px;
-}
-.download-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 12px;
-  border-radius: 7px;
-  background: rgba(37,99,235,.1);
-  color: #2563eb;
-  border: 1.5px solid rgba(37,99,235,.2);
-  font-size: 11px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all .18s;
-  font-family: 'Plus Jakarta Sans', sans-serif;
-}
-.download-btn:hover {
-  background: rgba(37,99,235,.18);
-  border-color: rgba(37,99,235,.35);
-}
-      `}</style>
-
       <div className="sd-page">
         <Link href="/dashboard/screening" className="back-link reveal r1">
           <ArrowLeft size={15} /> Back to Screening
@@ -904,7 +905,9 @@ export default function BlindScreeningDetailPage() {
                 onDrop={handleUploadDrop}
                 onClick={() => uploadFileInputRef.current?.click()}
               >
-                <Upload size={20} color="#7C3AED" />
+                <center>
+                  <Upload size={20} color="#7C3AED" />
+                </center>
                 <div className="upload-drop-title">
                   Drop CVs here or click to browse
                 </div>
@@ -1221,9 +1224,7 @@ export default function BlindScreeningDetailPage() {
                         )}
                       </>
                     ) : candidate.screening_status === "processing" ? (
-                      <span className="pending-badge">
-                        <RefreshCw size={11} className="spinning" /> Screening
-                      </span>
+                      <ProcessingRing />
                     ) : (
                       <span className="pending-badge">
                         <Clock size={11} /> Pending

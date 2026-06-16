@@ -76,6 +76,7 @@ export default async function DashboardLayout({
           top: 0;
           left: 0;
           bottom: 0;
+          height: 100vh;
           z-index: 50;
           transition: width 0.25s ease;
         }

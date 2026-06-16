@@ -1,5 +1,3 @@
-// app/api/candidates/[id]/route.ts
-//
 // CONCEPT:
 // HR uses this to shortlist or reject a candidate after viewing AI results.
 // Uses cv_uploads table (your actual candidates table).
@@ -68,7 +66,7 @@ export async function GET(
       `,
       )
       .eq("id", candidateId)
-      .eq("company_id", profile.company_id) // ownership check
+      .eq("company_id", profile.company_id)
       .single();
 
     if (cvErr || !candidate) {

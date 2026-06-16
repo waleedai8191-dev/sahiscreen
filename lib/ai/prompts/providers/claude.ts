@@ -9,7 +9,7 @@ import {
 
 const CLAUDE_API_URL = "https://api.anthropic.com/v1/messages";
 const CLAUDE_MODEL = "claude-sonnet-4-20250514";
-const MAX_TOKENS = 1200;
+const MAX_TOKENS = 2000;
 const MAX_RETRIES = 3;
 
 // ─── Types ────────────────────────────────────────────────────────────────────

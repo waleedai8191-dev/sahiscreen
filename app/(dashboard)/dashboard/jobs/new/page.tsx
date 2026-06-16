@@ -165,6 +165,12 @@ export default function NewJobPage() {
   const [skillInput, setSkillInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  const [limitError, setLimitError] = useState<{
+    plan: string;
+    current: number;
+    limit: number;
+    message: string;
+  } | null>(null);
   const skillRef = useRef<HTMLInputElement>(null);
   const isSubmitting = useRef(false);
 
@@ -305,13 +311,30 @@ export default function NewJobPage() {
         }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Failed to create job");
+      if (!res.ok) {
+        // Job limit reached — special UX
+        if (json.code === "JOB_LIMIT_REACHED") {
+          throw new Error(
+            `__LIMIT__|${json.plan}|${json.current}|${json.limit}|${json.message}`,
+          );
+        }
+        throw new Error(json.error || "Failed to create job");
+      }
 
       router.push(`/dashboard/jobs/${json.job.id}`);
     } catch (err: unknown) {
-      setSubmitError(
-        err instanceof Error ? err.message : "Failed to create job",
-      );
+      const msg = err instanceof Error ? err.message : "Failed to create job";
+      if (msg.startsWith("__LIMIT__|")) {
+        const [, plan, current, limit, message] = msg.split("|");
+        setLimitError({
+          plan,
+          current: Number(current),
+          limit: Number(limit),
+          message,
+        });
+      } else {
+        setSubmitError(msg);
+      }
       setSubmitting(false);
       isSubmitting.current = false;
     }
@@ -839,10 +862,139 @@ export default function NewJobPage() {
               </>
             )}
 
-            {/* ── Error banner ── */}
+            {/* ── Generic error banner ── */}
             {submitError && (
               <div className="error-banner">
                 <AlertCircle size={16} /> {submitError}
+              </div>
+            )}
+
+            {/* ── Job limit reached banner ── */}
+            {limitError && (
+              <div
+                style={{
+                  background: "rgba(124,58,237,0.06)",
+                  border: "1.5px solid rgba(124,58,237,0.25)",
+                  borderRadius: 14,
+                  padding: "18px 20px",
+                  marginBottom: 8,
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    marginBottom: 10,
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 36,
+                      height: 36,
+                      background: "rgba(124,58,237,0.12)",
+                      borderRadius: 10,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Zap size={16} color="#7C3AED" />
+                  </div>
+                  <div>
+                    <div
+                      style={{
+                        fontSize: 14,
+                        fontWeight: 800,
+                        color: "#0f172a",
+                      }}
+                    >
+                      Job Limit Reached
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: "#64748b",
+                        marginTop: 1,
+                      }}
+                    >
+                      {limitError.current} of {limitError.limit} active job
+                      {limitError.limit === 1 ? "" : "s"} used on your{" "}
+                      {limitError.plan} plan
+                    </div>
+                  </div>
+                </div>
+                <div
+                  style={{
+                    fontSize: 13,
+                    color: "#475569",
+                    lineHeight: 1.6,
+                    marginBottom: 14,
+                  }}
+                >
+                  {limitError.message}
+                </div>
+                {/* Usage bar */}
+                <div
+                  style={{
+                    background: "#f1f5f9",
+                    borderRadius: 100,
+                    height: 6,
+                    marginBottom: 14,
+                    overflow: "hidden",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      background: "#ef4444",
+                      borderRadius: 100,
+                    }}
+                  />
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <Link
+                    href="/dashboard/billing"
+                    style={{
+                      flex: 1,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 6,
+                      padding: "9px 16px",
+                      background: "linear-gradient(135deg,#7C3AED,#5b21b6)",
+                      color: "#fff",
+                      borderRadius: 9,
+                      fontSize: 13,
+                      fontWeight: 700,
+                      textDecoration: "none",
+                    }}
+                  >
+                    <Zap size={13} /> Upgrade Plan
+                  </Link>
+                  <Link
+                    href="/dashboard/jobs"
+                    style={{
+                      flex: 1,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 6,
+                      padding: "9px 16px",
+                      background: "#f8fafc",
+                      border: "1.5px solid #e2e8f0",
+                      color: "#374151",
+                      borderRadius: 9,
+                      fontSize: 13,
+                      fontWeight: 600,
+                      textDecoration: "none",
+                    }}
+                  >
+                    Close or Delete a Job
+                  </Link>
+                </div>
               </div>
             )}
 

@@ -423,8 +423,18 @@ export default function SupportPage() {
         @media (max-width: 600px) {
           .support-root { padding: 16px; }
           .suggestions-grid { grid-template-columns: 1fr; }
-          .chat-card { height: 500px; }
-        }
+           .chat-input-area { padding: 10px; gap: 8px; }
+  .chat-textarea { font-size: 14px; padding: 9px 12px; min-height: 40px; }
+  .chat-send-btn { width: 40px; height: 40px; flex-shrink: 0; }
+}
+
+@media (max-width: 400px) {
+  .support-root { padding: 10px; }
+  .chat-card { border-radius: 14px; }
+  .chat-textarea { font-size: 14px; padding: 8px 10px; }
+  .support-title { font-size: 18px; }
+  .welcome-title { font-size: 15px; }
+}
       `}</style>
 
       <div className="support-root">
@@ -507,7 +517,7 @@ export default function SupportPage() {
               <textarea
                 ref={inputRef}
                 className="chat-textarea"
-                placeholder="Ask anything about SahiScreen..."
+                placeholder="Ask about SahiScreen...."
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}

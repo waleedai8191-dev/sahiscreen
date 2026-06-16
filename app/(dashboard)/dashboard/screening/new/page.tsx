@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import "../../../../Style/Dashboard/Screening/new-screen.css";
 import {
   ArrowLeft,
   FileText,
@@ -196,135 +197,6 @@ export default function NewScreeningPage() {
 
   return (
     <>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-        * { box-sizing: border-box; }
-        .new-sc-page {
-          min-height: 100%; background: #f8fafc;
-          padding: 28px 32px 60px;
-          font-family: 'Plus Jakarta Sans', sans-serif;
-        }
-        @keyframes fadeUp {
-          from { opacity: 0; transform: translateY(12px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        .reveal { animation: fadeUp .38s cubic-bezier(.22,1,.36,1) both; }
-        .r1 { animation-delay: .04s; } .r2 { animation-delay: .10s; }
-        .r3 { animation-delay: .16s; }
-
-        .back-link {
-          display: inline-flex; align-items: center; gap: 7px;
-          font-size: 13px; font-weight: 600; color: #64748b;
-          text-decoration: none; margin-bottom: 20px; transition: color .18s;
-        }
-        .back-link:hover { color: #7C3AED; }
-
-        .section-card {
-          background: #fff; border: 1px solid #e2e8f0;
-          border-radius: 16px; padding: 24px 26px; margin-bottom: 18px;
-        }
-        .section-title { font-size: 15px; font-weight: 800; color: #0f172a; margin-bottom: 4px; }
-        .section-sub { font-size: 13px; color: #64748b; margin-bottom: 20px; }
-
-        .form-group { margin-bottom: 16px; }
-        .form-label { display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 6px; }
-        .form-input {
-          width: 100%; padding: 10px 14px;
-          border: 1.5px solid #e2e8f0; border-radius: 10px;
-          font-size: 13px; font-family: 'Plus Jakarta Sans', sans-serif;
-          color: #0f172a; background: #fff; outline: none;
-          transition: border-color .2s, box-shadow .2s;
-        }
-        .form-input::placeholder { color: #94a3b8; }
-        .form-input:focus { border-color: #7C3AED; box-shadow: 0 0 0 3px rgba(124,58,237,.08); }
-        .form-textarea { resize: vertical; min-height: 80px; }
-
-        .btn-primary {
-          display: inline-flex; align-items: center; gap: 7px;
-          padding: 10px 20px; border-radius: 10px;
-          background: linear-gradient(135deg, #7C3AED, #5b21b6);
-          border: none; font-size: 13px; font-weight: 700; color: #fff;
-          cursor: pointer; box-shadow: 0 4px 12px rgba(124,58,237,.28);
-          transition: transform .18s, box-shadow .18s;
-          font-family: 'Plus Jakarta Sans', sans-serif;
-        }
-        .btn-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(124,58,237,.36); }
-        .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
-
-        .btn-outline {
-          display: inline-flex; align-items: center; gap: 7px;
-          padding: 10px 18px; border-radius: 10px;
-          border: 1.5px solid #e2e8f0; background: #fff;
-          font-size: 13px; font-weight: 600; color: #374151;
-          cursor: pointer; transition: all .18s;
-          font-family: 'Plus Jakarta Sans', sans-serif;
-        }
-        .btn-outline:hover { border-color: #7C3AED; color: #7C3AED; }
-
-        .step-badge {
-          display: inline-flex; align-items: center; justify-content: center;
-          width: 24px; height: 24px; border-radius: 50%;
-          background: linear-gradient(135deg, #7C3AED, #5b21b6);
-          color: #fff; font-size: 12px; font-weight: 800;
-          margin-right: 10px; flex-shrink: 0;
-        }
-        .step-header { display: flex; align-items: center; margin-bottom: 4px; }
-
-        .drop-zone {
-          border: 2px dashed #e2e8f0; border-radius: 12px;
-          padding: 36px 24px; text-align: center;
-          cursor: pointer; transition: all .2s;
-        }
-        .drop-zone:hover, .drop-zone.dragging {
-          border-color: #7C3AED; background: rgba(124,58,237,.03);
-        }
-        .drop-icon {
-          width: 52px; height: 52px; border-radius: 14px;
-          background: rgba(124,58,237,.1);
-          display: flex; align-items: center; justify-content: center;
-          margin: 0 auto 12px;
-        }
-        .drop-title { font-size: 14px; font-weight: 700; color: #0f172a; margin-bottom: 4px; }
-        .drop-sub { font-size: 12px; color: #94a3b8; }
-
-        .file-list { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
-        .file-row {
-          display: flex; align-items: center; gap: 12px;
-          padding: 10px 14px; background: #f8fafc;
-          border: 1px solid #e2e8f0; border-radius: 10px;
-        }
-        .file-name { flex: 1; font-size: 13px; color: #0f172a; font-weight: 500;
-          white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .file-size { font-size: 11px; color: #94a3b8; flex-shrink: 0; }
-        .file-status { flex-shrink: 0; }
-
-        .spinning { animation: spin 1s linear infinite; }
-
-        .error-box {
-          display: flex; align-items: center; gap: 10px;
-          padding: 12px 16px; background: rgba(239,68,68,.06);
-          border: 1px solid rgba(239,68,68,.2); border-radius: 10px;
-          font-size: 13px; color: #dc2626; font-weight: 500;
-          margin-bottom: 16px;
-        }
-
-        .success-box {
-          display: flex; align-items: center; gap: 10px;
-          padding: 16px 20px; background: rgba(34,197,94,.06);
-          border: 1px solid rgba(34,197,94,.2); border-radius: 12px;
-          font-size: 14px; color: #16a34a; font-weight: 600;
-        }
-
-        .disabled-overlay {
-          opacity: 0.5; pointer-events: none; user-select: none;
-        }
-
-        @media (max-width: 640px) {
-          .new-sc-page { padding: 20px 16px 48px; }
-        }
-      `}</style>
-
       <div className="new-sc-page">
         <Link href="/dashboard/screening" className="back-link reveal r1">
           <ArrowLeft size={15} /> Back to Screening

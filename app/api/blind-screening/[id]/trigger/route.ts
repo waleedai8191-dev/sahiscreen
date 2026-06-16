@@ -308,7 +308,7 @@ async function processBlindCV(
 
     // Step C: Call AI based on plan
     let rawResponse = "";
-    console.log("🤖 Calling AI provider:", aiProvider);
+    // console.log("🤖 Calling AI provider:", aiProvider);
     if (aiProvider === "gemini") {
       rawResponse = await callGemini(systemPrompt, userPrompt);
     } else if (aiProvider === "claude-sonnet") {

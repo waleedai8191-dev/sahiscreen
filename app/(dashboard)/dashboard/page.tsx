@@ -69,14 +69,14 @@ async function getDashboardData(companyId: string) {
           .order("created_at", { ascending: false })
           .limit(5),
         supabase
-          .from("candidates")
+          .from("cv_uploads")
           .select("id", { count: "exact", head: true })
           .eq("company_id", companyId),
         supabase
-          .from("candidates")
+          .from("screening_results")
           .select("id", { count: "exact", head: true })
           .eq("company_id", companyId)
-          .eq("screening_status", "screened"),
+          .eq("status", "completed"),
         supabase
           .from("jobs")
           .select("id", { count: "exact", head: true })
@@ -272,6 +272,13 @@ export default async function DashboardPage() {
     : 0;
   const isPremium = subscription?.plan === "premium";
   const isTrial = subscription?.status === "trial";
+  // Job limit from plan
+  const planJobLimit =
+    subscription?.plan === "premium"
+      ? 35
+      : subscription?.plan === "essential"
+        ? 20
+        : 1;
 
   const hour = new Date().getHours();
   const greeting =
@@ -350,6 +357,41 @@ export default async function DashboardPage() {
             </div>
             <div className="stat-value">{activeJobs}</div>
             <div className="stat-label">Active Jobs</div>
+            {/* Plan job limit bar */}
+            <div className="usage-bar-wrap" style={{ marginTop: 8 }}>
+              <div className="usage-bar-row">
+                <span className="usage-bar-label">
+                  of {planJobLimit} job limit
+                </span>
+                <span
+                  className="usage-bar-pct"
+                  style={{
+                    color:
+                      activeJobs >= planJobLimit
+                        ? "#ef4444"
+                        : activeJobs >= planJobLimit * 0.8
+                          ? "#f59e0b"
+                          : "#22c55e",
+                  }}
+                >
+                  {activeJobs}/{planJobLimit}
+                </span>
+              </div>
+              <div className="ubar-track">
+                <div
+                  className="ubar-fill"
+                  style={{
+                    width: `${Math.min((activeJobs / planJobLimit) * 100, 100)}%`,
+                    background:
+                      activeJobs >= planJobLimit
+                        ? "#ef4444"
+                        : activeJobs >= planJobLimit * 0.8
+                          ? "#f59e0b"
+                          : "#22c55e",
+                  }}
+                />
+              </div>
+            </div>
           </div>
 
           {/* Total candidates */}

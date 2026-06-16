@@ -155,7 +155,9 @@ export default function Sidebar({ profile, subscription }: SidebarProps) {
 
         .sidebar {
           width: 100%;
-          height: 100%;
+          height: 100vh;
+            min-height: 100%;
+
           background: #0f172a;
           display: flex;
           flex-direction: column;
@@ -164,7 +166,12 @@ export default function Sidebar({ profile, subscription }: SidebarProps) {
           position: relative;
           transition: all 0.25s ease;
         }
-
+@media (max-width: 767px) {
+  .sidebar {
+    height: 100dvh;
+    min-height: unset;
+  }
+}
         /* Subtle top glow */
         .sidebar-glow {
           position: absolute;

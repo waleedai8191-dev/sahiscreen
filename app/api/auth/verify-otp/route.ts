@@ -34,6 +34,7 @@ export async function POST(req: NextRequest) {
       otp: string;
       userId: string;
       planTier: string;
+      password: string;
     };
 
     try {
@@ -103,16 +104,40 @@ export async function POST(req: NextRequest) {
         { status: 500 },
       );
     }
+    // Step 7 — Create session using magic link token
+    const { data: linkData, error: linkError } =
+      await admin.auth.admin.generateLink({
+        type: "magiclink",
+        email: payload.email,
+      });
 
-    // Step 7 — Sign in user so session cookie is set
-    // We use admin to create a session
-    // const { data: sessionData, error: sessionError } =
-    //   await admin.auth.admin.createSession({
-    //     user_id: payload.userId,
-    //   } as any);
+    if (linkError || !linkData?.properties?.hashed_token) {
+      console.error("Generate link error:", linkError);
+      return NextResponse.json(
+        {
+          error: "Account verified but sign-in failed. Please log in manually.",
+        },
+        { status: 500 },
+      );
+    }
 
-    // Step 8 — Clear OTP cookie + return success
-    // Step 8 — Clear OTP cookie + return success
+    // Exchange the hashed token for a real session
+    const { data: sessionData, error: sessionError } =
+      await admin.auth.verifyOtp({
+        token_hash: linkData.properties.hashed_token,
+        type: "magiclink",
+      });
+
+    if (sessionError || !sessionData?.session) {
+      console.error("Session exchange error:", sessionError);
+      return NextResponse.json(
+        {
+          error: "Account verified but sign-in failed. Please log in manually.",
+        },
+        { status: 500 },
+      );
+    }
+    // Step 7+8 — Build response, sign user in via SSR client so cookies are set
     const { isPaidPlan } = await import("@/lib/plans");
     const resolvedPlan = payload.planTier ?? plan ?? "free";
     const requiresPayment = isPaidPlan(resolvedPlan as any);
@@ -120,9 +145,39 @@ export async function POST(req: NextRequest) {
     const response = NextResponse.json({
       success: true,
       planTier: resolvedPlan,
-      requiresPayment, // ← frontend reads this
+      requiresPayment,
     });
 
+    // SSR client writes session cookies directly into the response
+    const { createServerClient } = await import("@supabase/ssr");
+    const supabaseSSR = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return req.cookies.getAll();
+          },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              response.cookies.set(name, value, options); // ← writes into response
+            });
+          },
+        },
+      },
+    );
+
+    const { error: signInError } = await supabaseSSR.auth.signInWithPassword({
+      email: payload.email,
+      password: payload.password,
+    });
+
+    if (signInError) {
+      console.error("Auto sign-in error:", signInError);
+      // Don't block — user is verified, they can log in manually
+    }
+
+    // Clear OTP cookie
     response.cookies.set("otp_token", "", {
       httpOnly: true,
       maxAge: 0,

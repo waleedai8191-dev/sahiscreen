@@ -22,7 +22,7 @@ import { PLANS, type PlanTier } from "@/lib/plans";
 interface UserProfile {
   full_name: string | null;
   company_id: string | null;
-  companies?: { name: string }[] | null;
+  companies?: { name: string } | null;
 }
 
 // ── Steps config ──────────────────────────────────────────────────────────
@@ -113,10 +113,7 @@ export default function WelcomePage() {
   }, [router]);
 
   const firstName = profile?.full_name?.split(" ")[0] ?? "there";
-  const companyName =
-    Array.isArray(profile?.companies) && profile.companies.length > 0
-      ? profile.companies[0].name
-      : "your company";
+  const companyName = profile?.companies?.name ?? "your company";
   if (loading) {
     return (
       <div className="welcome-loading">

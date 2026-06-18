@@ -186,7 +186,7 @@ export default function LoginPage() {
           setErrors({
             general:
               attemptsLeft > 0
-                ? `Incorrect email or password. ${attemptsLeft} attempt${attemptsLeft !== 1 ? "s" : ""} remaining before temporary lockout.`
+                ? `Incorrect email or password.Please try again  .`
                 : "Incorrect email or password. Please try again.",
           });
         }

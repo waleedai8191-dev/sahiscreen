@@ -19,7 +19,6 @@ export interface BlindScreeningPromptInput {
 // What the AI MUST return — validated before saving to DB
 
 export interface ScreeningResult {
-  // Overall score (weighted average of 5 dimensions)
   overall_score: number; // 0-100
 
   // 5 dimension scores
@@ -35,6 +34,8 @@ export interface ScreeningResult {
   red_flags: string[]; // concerns (empty array if none)
   justification: string; // detailed reasoning for score
 
+  ai_generated_score: number; // 0-100 (100 = definitely AI written)
+  authenticity_flags: string[]; // specific patterns found
   // Final recommendation
   recommendation: "shortlist" | "consider" | "reject";
   // Interview questions tailored to this candidate
@@ -112,6 +113,16 @@ You score candidates on 5 dimensions, each from 0 to 100:
    - 70-89:  Good, minor issues
    - 50-69:  Average, some clarity issues
    - 0-49:   Poor writing, hard to understand
+6. ai_generated_score (0-100, higher = MORE AI-generated)
+   Patterns to detect:
+   - Perfect grammar with zero personality/voice
+   - Buzzword density: "synergized", "leveraged", "spearheaded" overuse
+   - Every bullet exactly same length and structure
+   - Skills listed have zero supporting project/evidence
+   - Achievements all sound the same: "Improved X by Y%"
+   - No typos, no human inconsistencies at all
+   - 90-100: Almost certainly AI-generated
+   - 0-30:   Clearly human-written
 
 OVERALL SCORE CALCULATION:
 overall_score = (relevance * 0.30) + (achievement * 0.25) +
@@ -379,6 +390,8 @@ Respond with ONLY this exact JSON structure — no other text:
     "<specific question 5 based on THIS candidate's CV and this job>"
   ],
   "justification": "<detailed paragraph explaining the overall_score>",
+   "ai_generated_score": <integer 0-100>,
+  "authenticity_flags": ["<flag1>", "<flag2>"]
 `.trim();
 }
 

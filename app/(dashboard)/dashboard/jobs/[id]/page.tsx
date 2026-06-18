@@ -72,6 +72,8 @@ interface Candidate {
   ai_summary: string | null;
   ai_strengths: string[] | null;
   ai_red_flags: string[] | null;
+  ai_generated_score: number | null;
+  authenticity_flags: string[] | null;
   ai_justification: string | null;
   ai_recommendation: string | null;
   interview_questions: string[] | null;
@@ -631,6 +633,26 @@ export default function JobDetailPage() {
       }
 
       // ── Red Flags ──
+      // ── AI Detection ──
+      if (c.ai_generated_score != null) {
+        y = checkPageBreak(y, 16);
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(217, 119, 6); // amber
+        doc.text("AI-Written Detection:", margin + 4, y);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(55, 65, 81);
+        doc.text(
+          `Score: ${c.ai_generated_score}/100 — ${
+            c.ai_generated_score > 60
+              ? "Likely AI-generated"
+              : "Appears human-written"
+          }`,
+          margin + 50,
+          y,
+        );
+        y += 6;
+      }
       if ((c.ai_red_flags ?? []).length > 0) {
         y = checkPageBreak(y, c.ai_red_flags!.length * 5 + 8);
         doc.setFontSize(9);
@@ -1862,7 +1884,86 @@ export default function JobDetailPage() {
                           </div>
                         )}
                     </div>
-
+                    {/* AI Detection Warning */}
+                    {candidate.ai_generated_score !== null &&
+                      candidate.ai_generated_score !== undefined && (
+                        <div
+                          style={{
+                            marginTop: 14,
+                            padding: "10px 14px",
+                            borderRadius: 10,
+                            background:
+                              candidate.ai_generated_score > 60
+                                ? "rgba(245,158,11,0.08)"
+                                : "rgba(34,197,94,0.08)",
+                            border: `1px solid ${
+                              candidate.ai_generated_score > 60
+                                ? "rgba(245,158,11,0.25)"
+                                : "rgba(34,197,94,0.2)"
+                            }`,
+                            display: "flex",
+                            alignItems: "flex-start",
+                            gap: 10,
+                          }}
+                        >
+                          <AlertTriangle
+                            size={15}
+                            color={
+                              candidate.ai_generated_score > 60
+                                ? "#d97706"
+                                : "#16a34a"
+                            }
+                            style={{ marginTop: 1, flexShrink: 0 }}
+                          />
+                          <div>
+                            <div
+                              style={{
+                                fontSize: 12,
+                                fontWeight: 700,
+                                color:
+                                  candidate.ai_generated_score > 60
+                                    ? "#d97706"
+                                    : "#16a34a",
+                                marginBottom: 4,
+                              }}
+                            >
+                              AI-Written CV Score:{" "}
+                              {candidate.ai_generated_score}/100
+                              {candidate.ai_generated_score > 60
+                                ? " — Likely AI-generated"
+                                : " — Appears human-written"}
+                            </div>
+                            {candidate.authenticity_flags &&
+                              candidate.authenticity_flags.length > 0 && (
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    flexWrap: "wrap",
+                                    gap: 5,
+                                  }}
+                                >
+                                  {candidate.authenticity_flags.map(
+                                    (flag, i) => (
+                                      <span
+                                        key={i}
+                                        style={{
+                                          fontSize: 11,
+                                          fontWeight: 500,
+                                          padding: "2px 8px",
+                                          borderRadius: 20,
+                                          background: "rgba(245,158,11,0.12)",
+                                          color: "#92400e",
+                                        }}
+                                      >
+                                        {flag}
+                                      </span>
+                                    ),
+                                  )}
+                                </div>
+                              )}
+                          </div>
+                        </div>
+                      )}
                     {/* Justification */}
                     {candidate.ai_justification && (
                       <div style={{ marginTop: 14 }}>

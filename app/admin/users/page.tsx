@@ -184,7 +184,7 @@ export default function AdminUsersPage() {
                 letterSpacing: -0.5,
               }}
             >
-              Users
+              HR Users
             </h1>
             <p style={{ fontSize: 13, color: "#64748b", marginTop: 4 }}>
               {users.length} total users across all companies
@@ -339,30 +339,25 @@ export default function AdminUsersPage() {
                         borderBottom: "1px solid #e2e8f0",
                       }}
                     >
-                      {[
-                        "User",
-                        "Company",
-                        "Role",
-                        "Status",
-                        "Joined",
-                        "Actions",
-                      ].map((h) => (
-                        <th
-                          key={h}
-                          style={{
-                            textAlign: "left",
-                            padding: "12px 16px",
-                            fontSize: 11,
-                            fontWeight: 700,
-                            color: "#64748b",
-                            textTransform: "uppercase",
-                            letterSpacing: 0.5,
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          {h}
-                        </th>
-                      ))}
+                      {["User", "Company", "Role", "Joined", "Actions"].map(
+                        (h) => (
+                          <th
+                            key={h}
+                            style={{
+                              textAlign: "left",
+                              padding: "12px 16px",
+                              fontSize: 11,
+                              fontWeight: 700,
+                              color: "#64748b",
+                              textTransform: "uppercase",
+                              letterSpacing: 0.5,
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {h}
+                          </th>
+                        ),
+                      )}
                     </tr>
                   </thead>
                   <tbody>
@@ -418,22 +413,7 @@ export default function AdminUsersPage() {
                               {u.role}
                             </span>
                           </td>
-                          <td style={{ padding: "14px 16px" }}>
-                            <span
-                              style={{
-                                fontSize: 11,
-                                fontWeight: 700,
-                                padding: "3px 10px",
-                                borderRadius: 20,
-                                background: u.is_active
-                                  ? "rgba(34,197,94,.1)"
-                                  : "rgba(239,68,68,.1)",
-                                color: u.is_active ? "#16a34a" : "#ef4444",
-                              }}
-                            >
-                              {u.is_active ? "Active" : "Inactive"}
-                            </span>
-                          </td>
+
                           <td
                             style={{
                               padding: "14px 16px",
@@ -581,21 +561,6 @@ export default function AdminUsersPage() {
                           {u.email}
                         </div>
                       </div>
-                      <span
-                        style={{
-                          fontSize: 11,
-                          fontWeight: 700,
-                          padding: "3px 10px",
-                          borderRadius: 20,
-                          background: u.is_active
-                            ? "rgba(34,197,94,.1)"
-                            : "rgba(239,68,68,.1)",
-                          color: u.is_active ? "#16a34a" : "#ef4444",
-                          flexShrink: 0,
-                        }}
-                      >
-                        {u.is_active ? "Active" : "Inactive"}
-                      </span>
                     </div>
 
                     {/* Meta row — company, role, joined */}

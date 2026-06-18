@@ -166,12 +166,12 @@ export default function Sidebar({ profile, subscription }: SidebarProps) {
           position: relative;
           transition: all 0.25s ease;
         }
-@media (max-width: 767px) {
+    @media (max-width: 767px) {
   .sidebar {
     height: 100dvh;
     min-height: unset;
-  }
-}
+    }
+   }
         /* Subtle top glow */
         .sidebar-glow {
           position: absolute;
@@ -954,26 +954,6 @@ export default function Sidebar({ profile, subscription }: SidebarProps) {
               </span>
             </div>
           )}
-
-          {/* Upgrade CTA — show for trial/essential users */}
-          {(plan === "trial" || plan === "essential") &&
-            userRole === "admin" && (
-              <Link href="/dashboard/billing" className="sidebar-upgrade">
-                <div className="upgrade-icon">
-                  <Zap size={14} color="white" />
-                </div>
-                <div className="upgrade-text">
-                  <span className="upgrade-title">
-                    {plan === "trial" ? "Upgrade Plan" : "Go Premium"}
-                  </span>
-                  <span className="upgrade-sub">
-                    {plan === "trial"
-                      ? "30 CVs · 15 day trial"
-                      : "1000 CVs ·Pro AI Engine "}
-                  </span>
-                </div>
-              </Link>
-            )}
 
           {/* ── Divider ── */}
           <div className="sidebar-divider" />

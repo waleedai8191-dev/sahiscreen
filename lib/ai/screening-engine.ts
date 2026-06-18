@@ -110,7 +110,11 @@ async function saveScreeningResult(
       status: "completed",
       model_used: result.model_used ?? "claude-sonnet",
       screened_at: new Date().toISOString(),
+      // AI authenticity detection (new)
+      ai_generated_score: result.ai_generated_score ?? 0,
+      authenticity_flags: result.authenticity_flags ?? [],
     },
+
     { onConflict: "candidate_id" },
   );
 }

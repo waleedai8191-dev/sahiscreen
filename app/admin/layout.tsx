@@ -24,17 +24,18 @@ const NAV_ITEMS = [
     icon: LayoutDashboard,
     description: "Overview & stats",
   },
-  {
-    href: "/admin/users",
-    label: "HR Users",
-    icon: Users,
-    description: "All HR users",
-  },
+
   {
     href: "/admin/companies",
     label: "Companies",
     icon: Building2,
     description: "All workspaces",
+  },
+  {
+    href: "/admin/users",
+    label: "HR Users",
+    icon: Users,
+    description: "All HR users",
   },
   {
     href: "/admin/data-history",

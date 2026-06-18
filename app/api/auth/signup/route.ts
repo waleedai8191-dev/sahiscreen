@@ -9,7 +9,8 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, password, fullName, companyName } = await req.json();
+    const { email, password, fullName, companyName, planTier } =
+      await req.json();
 
     // Validate
     if (!email || !password || !fullName || !companyName) {
@@ -89,7 +90,8 @@ export async function POST(req: NextRequest) {
       email: email.trim().toLowerCase(),
       otp: otpCode,
       userId: newUser.user.id,
-      planTier: "trial",
+      planTier: planTier ?? "free",
+      password,
     })
       .setProtectedHeader({ alg: "HS256" })
       .setExpirationTime("10m")

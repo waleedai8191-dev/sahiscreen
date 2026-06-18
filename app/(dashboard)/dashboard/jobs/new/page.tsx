@@ -67,6 +67,7 @@ const DEPARTMENTS = [
 ];
 
 const CITIES = [
+  // ── Major Metros ──
   "Karachi",
   "Lahore",
   "Islamabad",
@@ -75,10 +76,51 @@ const CITIES = [
   "Multan",
   "Peshawar",
   "Quetta",
+
+  // ── Punjab ──
   "Sialkot",
   "Gujranwala",
+  "Gujrat",
+  "Bahawalpur",
+  "Sargodha",
+  "Sheikhupura",
+  "Jhang",
+  "Rahim Yar Khan",
+  "Sahiwal",
+  "Okara",
+  "Wah Cantonment",
+  "Dera Ghazi Khan",
+  "Kasur",
+  "Hafizabad",
+  "Chiniot",
+  "Khanewal",
+  "Mandi Bahauddin",
+
+  // ── Sindh ──
   "Hyderabad",
+  "Sukkur",
+  "Larkana",
+  "Nawabshah",
+  "Mirpur Khas",
+  "Jacobabad",
+
+  // ── KPK ──
   "Abbottabad",
+  "Mardan",
+  "Mingora (Swat)",
+  "Kohat",
+  "Dera Ismail Khan",
+
+  // ── Balochistan ──
+  "Turbat",
+  "Khuzdar",
+  "Hub",
+
+  // ── AJK / GB ──
+  "Muzaffarabad",
+  "Gilgit",
+
+  // ── Work Mode ──
   "Remote",
   "On-site",
   "Hybrid",
@@ -159,6 +201,7 @@ export default function NewJobPage() {
 
   const [step, setStep] = useState(1);
   const [form, setForm] = useState<JobForm>(INITIAL_FORM);
+  const [customDepartment, setCustomDepartment] = useState("");
   const [errors, setErrors] = useState<Partial<Record<keyof JobForm, string>>>(
     {},
   );
@@ -180,7 +223,17 @@ export default function NewJobPage() {
     setForm((f) => ({ ...f, [field]: value }));
     setErrors((e) => ({ ...e, [field]: "" }));
   };
-
+  // ── Department handler ─────────────────────────────────────────────────────
+  const handleDepartmentChange = (value: string) => {
+    if (value !== "Other") {
+      setCustomDepartment("");
+      set("department", value);
+    } else {
+      setForm((f) => ({ ...f, department: "Other" }));
+      setErrors((e) => ({ ...e, department: "" }));
+      setCustomDepartment("");
+    }
+  };
   const addSkill = (skill: string) => {
     const s = skill.trim();
     if (!s || form.skills.includes(s)) return;
@@ -191,7 +244,14 @@ export default function NewJobPage() {
   const removeSkill = (skill: string) =>
     setForm((f) => ({ ...f, skills: f.skills.filter((s) => s !== skill) }));
 
-  const suggestedSkills = SUGGESTED_SKILLS[form.department] ?? [];
+  const suggestedSkills =
+    SUGGESTED_SKILLS[form.department] ??
+    SUGGESTED_SKILLS[
+      Object.keys(SUGGESTED_SKILLS).find(
+        (k) => k.toLowerCase() === form.department.toLowerCase(),
+      ) ?? ""
+    ] ??
+    [];
 
   // ── Validation ─────────────────────────────────────────────────────────────
 
@@ -199,7 +259,16 @@ export default function NewJobPage() {
     const e: Partial<Record<keyof JobForm, string>> = {};
     if (s === 1) {
       if (!form.title.trim()) e.title = "Job title is required";
-      if (!form.department) e.department = "Department is required";
+      if (
+        !form.department ||
+        form.department.trim() === "" ||
+        form.department === "Other"
+      ) {
+        e.department =
+          form.department === "Other"
+            ? "Please type your department name"
+            : "Department is required";
+      }
       if (!form.location) e.location = "Location is required";
 
       const min = parseInt(form.salary_min);
@@ -418,8 +487,13 @@ export default function NewJobPage() {
                       <div className="sel-wrap">
                         <select
                           className={`sel${errors.department ? " error" : ""}`}
-                          value={form.department}
-                          onChange={(e) => set("department", e.target.value)}
+                          value={
+                            // If custom text exists, show "Other" as selected in dropdown
+                            customDepartment !== "" ? "Other" : form.department
+                          }
+                          onChange={(e) =>
+                            handleDepartmentChange(e.target.value)
+                          }
                         >
                           <option value="">Select department</option>
                           {DEPARTMENTS.map((d) => (
@@ -435,7 +509,31 @@ export default function NewJobPage() {
                           <AlertCircle size={12} /> {errors.department}
                         </span>
                       )}
+                      {(form.department === "Other" ||
+                        customDepartment !== "") && (
+                        <input
+                          className={`inp${errors.department ? " error" : ""}`}
+                          placeholder="Type your department name..."
+                          value={customDepartment}
+                          autoFocus
+                          style={{ marginTop: 8 }}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setCustomDepartment(val);
+                            // Live-update form.department with actual typed value
+                            setForm((f) => ({ ...f, department: val }));
+                            setErrors((e) => ({ ...e, department: "" }));
+                          }}
+                        />
+                      )}
+
+                      {errors.department && (
+                        <span className="field-error">
+                          <AlertCircle size={12} /> {errors.department}
+                        </span>
+                      )}
                     </div>
+
                     <div className="field">
                       <label>
                         Location <span className="required">*</span>
